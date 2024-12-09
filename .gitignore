@@ -1,0 +1,41 @@
+# General
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# 実行時に生成された画像ファイルを監視から逃れるようにする。
+*.svg
+
+# figureディレクトリを監視から逃れるようにする
+/**/figures/
+
+# srcディレクトリの中にある__pycache__ディレクトリを監視から逃れられるようにする。
+/**/__pycache__/
+
+# 使用する音源データ以外のファイルを除外
+/sound_data/
+!/sound_data/music1_mono.wav
+!/sound_data/music2_mono.wav
+
