@@ -1,4 +1,4 @@
-# room_simulation_no_embedded.py
+# room_simulation.py
 
 # import (settingsはsrcディレクトリ内のsettings.pyを使用)
 import numpy as np
@@ -96,8 +96,8 @@ for i, sound in enumerate(separate_recordings):
     print(i)
     recorded        = sound[0, :]
     sf.write(f'../sound_data/room_simulation/music{music_type}_room_seed{seeds[i]}.wav',
-             recorded / np.max(recorded) * 0.95,
-             fs)
+            recorded / np.max(recorded) * 0.95,
+            fs)
 
 # ミックスされた音源を保存
 mixed_recorded  = np.sum(separate_recordings, axis=0)[0,:]
