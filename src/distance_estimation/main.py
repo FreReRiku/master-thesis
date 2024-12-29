@@ -20,21 +20,19 @@ music_type = 2
 c   = 340.29
 # サンプル長
 L   = 16000*18
-# フレーム数
+# フレーム長
 N   = 1024
-# ポップ長
+# ホップ長
 S   = 512
 
-emb_amp = np.linspace(0, 1, 25)
-# emb_phase = np.linspace(0, 180, 25)
-# phaseを変更していく。
+# 埋め込む振幅の設定
+emb_amp   = np.linspace(0, 1, 25)
+# 埋め込む位相の設定
 emb_phase = 180
+
 dte_log, pesq_log = [], []
 
-# for num, phase in enumerate(emb_phase)
-
 for num, amp in enumerate(emb_amp):
-
 
     st = 1000  # スタートポイント
     ed = st + L  # エンドポイント
@@ -55,30 +53,24 @@ for num, amp in enumerate(emb_amp):
     print(f' - １回の検知で埋め込むフレーム数：{K}フレーム')
     print(f' - 試行回数：{len(start_frame_pos)}回\n')
 
-    '''---------------
-        オーディオファイルの読み込み
-    ---------------'''
+    # --オーディオファイルの読み込み----------
     # ファイル名
-    file_name_impulse1  = '../sound_data/room_simulation/impulse_mic1_ch1.wav'
-    file_name_impulse2  = '../sound_data/room_simulation/impulse_mic1_ch2.wav'
-    file_name_origin    = f'../sound_data/original_sound_source/music{music_type}_mono.wav'
-    file_name_received1 = f'../sound_data/room_simulation/music{music_type}_room_seed1.wav'
-    file_name_received2 = f'../sound_data/room_simulation/music{music_type}_room_seed1234.wav'
+    file_name_impulse1  = './../../sound_data/room_simulation/impulse_signal_ch1_16000Hz.wav'
+    file_name_impulse2  = './../../sound_data/room_simulation/impulse_signal_ch2_16000Hz.wav'
+    file_name_origin    = f'./../../sound_data/original/music{music_type}_mono.wav'
+    file_name_received1 = f'./../../sound_data/room_simulation/music{music_type}_room_ch1_16000Hz.wav'
+    file_name_received2 = f'./../../sound_data/room_simulation/music{music_type}_room_ch2_16000Hz.wav'
     # 読み込み
-    h1, _   = sf.read(file_name_impulse1)
-    h2, _   = sf.read(file_name_impulse2)
+    impulse1, _   = sf.read(file_name_impulse1)
+    impulse2, _   = sf.read(file_name_impulse2)
     x, _    = sf.read(file_name_origin)
     y1, _   = sf.read(file_name_received1)
     y2, fs  = sf.read(file_name_received2)
     # 時間軸
     t = np.arange(N)/fs
 
-    # a.単一音声の場合：
-    #h       = h1
-    #y       = y1
-    # b.混合音声の場合：
-    h  = h1[:2500] + h2[:2500]
-    #y  = y1 + y2
+    # インパルス応答の混合
+    impulse  = impulse1[:2500] + impulse2[:2500]
 
 
     # 音声のトリミング (長すぎるので)
@@ -125,9 +117,6 @@ for num, amp in enumerate(emb_amp):
         # ログに溜め込む
         CSP0_log.append(CSP0_ave)
 
-        # numpyに変更
-        #  CSP0_log     = np.array(CSP0_log)         # CSP0
-
         # dを推定
         d = (np.argmax(CSP0_log)-25)
 
@@ -136,8 +125,8 @@ for num, amp in enumerate(emb_amp):
     # インパルス、CSP1,2の真のピーク位置
     pos_imp = []
     pos_imp2 = []
-    for h_ in [h1, h2]:
-        pos_peaks, _ = find_peaks(h_, height=0.6)
+    for impulse_ in [impulse1, impulse2]:
+        pos_peaks, _ = find_peaks(h_, height=0.2)
         pos_imp.append(pos_peaks[0])
         pos_imp2.append(pos_peaks[0]-d)
 
@@ -181,8 +170,6 @@ for num, amp in enumerate(emb_amp):
         # CSPの周波数特性から，振幅の大きい順にD個の周波数を検知
         pos         = np.argsort(-np.abs(CSP1))  # 周波数の大きい順にインデックスを取得
         embedded_freq   = pos[:D]               # CSPの最大D個の周波数
-        # print(pos)
-        # print(embedded_freq)
 
         # 埋め込み位置の確認
         # plt.figure()
@@ -200,101 +187,20 @@ for num, amp in enumerate(emb_amp):
         CSP1_emb_ave     = CSP1_emb_ave[:N]               # いらない後半部を除去
         CSP1_emb_ave     = CSP1_emb_ave/np.max(CSP1_emb_ave)   # 最大で割り算
 
-#         '''---------------
-#             4. 振幅変調と位相変調
-#         ---------------'''
-#         # Y1 に対して振幅変調を行う
-#         Y1emb[embedded_freq, :] = amp * Y1emb[embedded_freq, :]        # embedded_freqの周波数ビンにamp倍
-#         # Y1 に対して位相変調
-#         theta = emb_phase/180 * np.pi
-#         Y1emb[embedded_freq, :] = Y1emb[embedded_freq, :] * np.exp(1j*theta)
-#         # print(f'Y1emb shape: {Y1emb.shape}')
-# 
-#         Yspec   = Y1emb + Y2spec
-# 
-#         # 音質検査用
-#         Y1zero[embedded_freq, k:k+3] = amp * Y1zero[embedded_freq, k:k+3]
-
         '''---------------
-            4. 振幅変調と位相変調 (修正版)
+            4. 振幅変調と位相変調
         ---------------'''
-#         # 上位5%の周波数を選択 (振幅変調)
-#         num_top_5_percent = int(len(pos) * 0.05)
-#         top_5_percent_freq = pos[:num_top_5_percent]
-# 
-#         # 上位6〜10%の周波数を選択 (位相変調)
-#         num_next_5_percent = int(len(pos) * 0.05)
-#         next_5_percent_freq = pos[num_top_5_percent:num_top_5_percent + num_next_5_percent]
-# 
-#         # 振幅変調の適用
-#         Y1emb[top_5_percent_freq, :] = amp * Y1emb[top_5_percent_freq, :]
-# 
-#         # 位相変調の適用
-#         theta = emb_phase / 180 * np.pi
-#         Y1emb[next_5_percent_freq, :] = Y1emb[next_5_percent_freq, :] * np.exp(1j * theta)
-# 
-#         # デバッグ用出力
-#         print(f"Top 5% frequencies: {top_5_percent_freq}")
-#         print(f"Next 5% frequencies: {next_5_percent_freq}")
-#         
-#         Yspec   = Y1emb + Y2spec
-# 
-#         # 音質検査用
-#         Y1zero[embedded_freq, k:k+3] = amp * Y1zero[embedded_freq, k:k+3]
+        # Y1 に対して振幅変調を行う
+        Y1emb[embedded_freq, :] = amp * Y1emb[embedded_freq, :]        # embedded_freqの周波数ビンにamp倍
+        # Y1 に対して位相変調
+        theta = emb_phase/180 * np.pi
+        Y1emb[embedded_freq, :] = Y1emb[embedded_freq, :] * np.exp(1j*theta)
+        # print(f'Y1emb shape: {Y1emb.shape}')
 
-        class SignalModulator:
-            def __init__(self, amp, emb_phase):
-                """
-                クラスの初期化
-                :param amp: 振幅変調の係数
-                :param emb_phase: 位相変調の角度 (度単位)
-                """
-                self.amp = amp
-                self.emb_phase = emb_phase / 180 * np.pi  # ラジアンに変換
+        Yspec   = Y1emb + Y2spec
 
-            def apply_amplitude_modulation(self, Y, indices):
-                """
-                振幅変調を適用する
-                :param Y: 周波数スペクトル (2次元配列)
-                :param indices: 振幅変調を適用するインデックス
-                """
-                Y[indices] *= self.amp
-                return Y
-
-            def apply_phase_modulation(self, Y, indices):
-                """
-                位相変調を適用する
-                :param Y: 周波数スペクトル (2次元配列)
-                :param indices: 位相変調を適用するインデックス
-                """
-                Y[indices] *= np.exp(1j * self.emb_phase)
-                return Y
-
-            def apply_modulation_to_test_signal(self, Y_test, embedded_freq, k):
-                """
-                音質検査用の信号に対して振幅変調と位相変調を適用する
-                :param Y_test: 音質検査用スペクトル (2次元配列)
-                :param embedded_freq: 埋め込み対象の周波数ビン
-                :param k: 時間インデックス (単一値)
-                :return: 変調を適用した音質検査用スペクトル
-                """
-                # 振幅変調を適用
-                Y_test[embedded_freq, k:k + 3] *= self.amp
-                # 位相変調を適用
-                # Y_test[embedded_freq, k:k + 3] *= np.exp(1j * self.emb_phase)
-                return Y_test
-        
-        # モジュレーションの適用
-        modulator = SignalModulator(amp=amp, emb_phase=emb_phase)
-
-        # 音質検査用スペクトルに変調を適用
-        Y1zero = modulator.apply_modulation_to_test_signal(Y1zero, embedded_freq, k)
-
-        # スペクトルを結合
-        Yspec = Y1emb + Y2spec
-
-        # print("Selective modulation for test signal completed.")
-
+        # 音質検査用
+        Y1zero[embedded_freq, k:k+3] = amp * Y1zero[embedded_freq, k:k+3]
 
         '''---------------
             5. 埋め込み信号を利用したCSPの計算
@@ -505,7 +411,7 @@ for num, amp in enumerate(emb_amp):
 
     pesq_log.append(score)
 
-    sf.write(f'../sound_data/AM_output_sound/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, fs)
+    sf.write(f'./../../sound_data/distance_estimation/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, fs)
 
 dte_log = np.array(dte_log)
 # print(dte_log)
@@ -539,6 +445,6 @@ lines1, labels1 = ax1.get_legend_handles_labels()
 lines2, labels2 = ax2.get_legend_handles_labels()
 ax2.legend(lines1+lines2, labels1+labels2, loc='lower right')
 
-plt.savefig('../figures/distance_estimation_using_AM/Amp_vs_PESQ.png')
+plt.savefig('./../../figures/distance_estimation/Amp_vs_PESQ.png')
 plt.show()
 
