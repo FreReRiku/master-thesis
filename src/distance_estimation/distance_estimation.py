@@ -1,29 +1,28 @@
-# distance_estimation.py
+'''----------
+distance_estimation.py
+埋込強度の変化に伴う推定誤差結果の変化をプロット
+Created by FreReRiku on 2024/12/30
+----------'''
 
-## 埋込強度の変化に伴う推定誤差結果の変化をプロット
-
-import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 from pesq import pesq
-from librosa import stft, istft, magphase, resample
+from librosa import stft, istft, resample
 from scipy.signal import find_peaks
-from scipy.fft import rfft, irfft, fftshift
+from scipy.fft import irfft
 
+# 音源の選択 (1 or 2)
+music_type = 2
 
-'''---------------
- 解析に用いる音源の選択
- 1か2を変数の値に代入してください
----------------'''
-music_type = 1
-
-'''---------------
-    パラメータ
----------------'''
-c   = 340.29    # 音速 [m/s]
+# --パラメータ----------
+# 音速 [m/s]
+c   = 340.29
+# サンプル長
 L   = 16000*18
+# フレーム数
 N   = 1024
+# ポップ長
 S   = 512
 
 emb_amp = np.linspace(0, 1, 25)
