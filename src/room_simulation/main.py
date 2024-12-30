@@ -11,7 +11,7 @@ import convert
 
 # --使用音源, スピーカーの設定----------
 # 使用する音源の選択(1 or 2)
-music_type = 2
+music_type = 1
 # スピーカーの数
 num_spk = 2
 # 各スピーカーに音源を割り当てる
