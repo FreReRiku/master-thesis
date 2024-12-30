@@ -17,7 +17,7 @@ num_spk = 2
 # 各スピーカーに音源を割り当てる
 channels = []
 for spk in range(num_spk):
-    fs, channel = wavfile.read(f'./../../sound_data/original/music{music_type}_mono.wav')
+    fs, channel = wavfile.read(f'./../../sound/original/music{music_type}_mono.wav')
     channels.append(channel)
 
 # デバッグ用
@@ -67,7 +67,7 @@ ax.set_ylim([0, 3.6])
 ax.set_zlim([0, 2.5])
 
 # 画像の保存
-plt.savefig('./../../figures/room_simulation/room.png')
+plt.savefig('./../../figure/room_simulation/room.png')
 
 # --インパルス応答のシミュレーション----------
 # 計算
@@ -77,7 +77,7 @@ for i, ir_ in enumerate(room.rir):
     for j, ir in enumerate(ir_):
         ir_signal = ir
         ir_signal = ir_signal / np.max(np.abs(ir_signal))
-        sf.write(f'./../../sound_data/room_simulation/impulse_signal_ch{j+1}_{fs}Hz.wav', ir_signal, fs)
+        sf.write(f'./../../sound/room_simulation/impulse_signal_ch{j+1}_{fs}Hz.wav', ir_signal, fs)
 
 # --音源を用いたシミュレーション----------
 separate_recordings = room.simulate(return_premix=True)
@@ -85,20 +85,20 @@ separate_recordings = room.simulate(return_premix=True)
 # 単体音声の保存
 for i, sound in enumerate(separate_recordings):
     recorded        = sound[0, :]
-    sf.write(f'./../../sound_data/room_simulation/music{music_type}_room_ch{i+1}_{fs}Hz.wav', recorded / np.max(recorded) * 0.95, fs)
+    sf.write(f'./../../sound/room_simulation/music{music_type}_room_ch{i+1}_{fs}Hz.wav', recorded / np.max(recorded) * 0.95, fs)
 
 # 混合音声の保存
 mixed_recorded  = np.sum(separate_recordings, axis=0)[0,:]
-sf.write(f'./../../sound_data/room_simulation/music{music_type}_room_mix_{fs}Hz.wav', mixed_recorded / np.max(mixed_recorded) * 0.95, fs)
+sf.write(f'./../../sound/room_simulation/music{music_type}_room_mix_{fs}Hz.wav', mixed_recorded / np.max(mixed_recorded) * 0.95, fs)
 
 # --サンプリングレートの変更----------
 # 音源リスト
 sound_files = [
-    './../../sound_data/room_simulation/impulse_signal_ch1',
-    './../../sound_data/room_simulation/impulse_signal_ch2',
-    f'./../../sound_data/room_simulation/music{music_type}_room_ch1',
-    f'./../../sound_data/room_simulation/music{music_type}_room_ch2',
-    f'./../../sound_data/room_simulation/music{music_type}_room_mix'
+    './../../sound/room_simulation/impulse_signal_ch1',
+    './../../sound/room_simulation/impulse_signal_ch2',
+    f'./../../sound/room_simulation/music{music_type}_room_ch1',
+    f'./../../sound/room_simulation/music{music_type}_room_ch2',
+    f'./../../sound/room_simulation/music{music_type}_room_mix'
 ]
 
 # 変更したいサンプリングレート
