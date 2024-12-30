@@ -35,9 +35,9 @@ Temporary Items
 /**/__pycache__/
 
 # 使用する音源データ以外のファイルを除外
-/sound_data/
-!/sound_data/music1_mono.wav
-!/sound_data/music2_mono.wav
+/sound/
+!/sound_data/original/music1_mono.wav
+!/sound_data/original/music2_mono.wav
 
 # 生成されるcsvファイルを除外
 /**/*.csv
