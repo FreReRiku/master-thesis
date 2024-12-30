@@ -391,9 +391,7 @@ for num, amp in enumerate(emb_amp):
     print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
 dte_data = np.array(dte_data)
-# print(dte_data)
 pesq_data = np.array(pesq_data)
-# print(pesq_data)
 
 # --埋込強度の変化に伴う推定誤差結果の変化をプロット----------
 fig = plt.figure(num='埋込強度変化', figsize=(6, 3))
@@ -402,7 +400,6 @@ ax1 = fig.add_subplot(1, 1, 1)
 
 ax1.plot(emb_amp, dte_data*c/1000, label='Distance Estimation Error')
 ax1.set_xlim([-0.05,1.0])
-#ax1.set_ylim([-0.05,1.75])
 ax1.set_xlabel("Embedding Amplitude Gain")
 ax1.set_ylabel("Estimation Distance Error[m]")
 
