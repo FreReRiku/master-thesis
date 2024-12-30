@@ -12,10 +12,12 @@ from librosa import stft, istft, resample
 from scipy.signal import find_peaks
 from scipy.fft import irfft
 
+# ------------------------------
+# パラメータ
+# ------------------------------
+
 # 音源の選択 (1 or 2)
 music_type = 1
-
-# --パラメータ----------
 # サンプリング周波数 [Hz]
 fs  = 44100
 # 音速 [m/s]
@@ -65,7 +67,10 @@ print(f' - 試行回数：{len(pos_st_frame)}回\n')
 
 for num, amp in enumerate(emb_amp):
 
-    # --オーディオファイルの読み込み----------
+    # ------------------------------
+    # オーディオファイルの読み込み
+    # ------------------------------
+
     # ファイル名
     file_name_impulse1  = f'./../../sound_data/room_simulation/impulse_signal_ch1_{fs}Hz.wav'
     file_name_impulse2  = f'./../../sound_data/room_simulation/impulse_signal_ch2_{fs}Hz.wav'
@@ -82,7 +87,7 @@ for num, amp in enumerate(emb_amp):
     # 時間軸
     t = np.arange(N)/fs
 
-    # 音声のトリミング (長すぎるので)
+    # 音声のトリミング
     x_0       = x[st:ed]          # スピーカ出力音声のトリミング
     y1_0      = y1[st:ed]         # マイク入力音声1のトリミング
     y2_0      = y2[st:ed]         # マイク入力音声1のトリミング
@@ -93,7 +98,6 @@ for num, amp in enumerate(emb_amp):
     # Y1specのサイズを調べたい。
     # print("Y1specのサイズ:", Y1spec.shape)
 
-    # print(f'Y1spec: {Y1spec}')
     Y2spec  = stft(y2_0, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
     Y1zero  = stft(y1, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
 
@@ -101,7 +105,9 @@ for num, amp in enumerate(emb_amp):
     CSP0_data, CSP_data, CSP1_data, CSP2_data, CSP_emb_data, CSP_sub_data, CSP_wtd_data , CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
 
 
+    # ------------------------------
     # 1st: CSP0, 及びTop Position d_0 の推定
+    # ------------------------------
     for k in pos_st_frame:
 
         # マイク入力音声のスペクトログラム
@@ -159,7 +165,9 @@ for num, amp in enumerate(emb_amp):
         # マイク入力音声のスペクトログラム
         Yspec       = Y1spec + Y2spec
 
-        # --CSP1を求める----------
+        # ------------------------------
+        # 2nd: CSP1を求める
+        # ------------------------------
         XY1          = Yspec[:, k:k+K] * np.conj(Xspec[:, k:k+K])    # 相互相関(周波数領域)
         XY1abs       = np.abs(XY1)                # 相互相関の絶対値(周波数領域)
         XY1abs[XY1abs < eps] = eps                # 分母がほぼ0になるのを防止
@@ -184,7 +192,9 @@ for num, amp in enumerate(emb_amp):
         CSP1_emb_ave     = CSP1_emb_ave[:N]               # いらない後半部を除去
         CSP1_emb_ave     = CSP1_emb_ave/np.max(CSP1_emb_ave)   # 最大で割り算
 
-        # --振幅変調と位相変調----------
+        # ------------------------------
+        # 3rd: 振幅変調と位相変調
+        # ------------------------------
         # Y1 に対して振幅変調
         Y1emb[embedded_freq, :] = amp * Y1emb[embedded_freq, :]        # embedded_freqの周波数ビンにamp倍
         # Y1 に対して位相変調
@@ -195,7 +205,9 @@ for num, amp in enumerate(emb_amp):
         # -音質検査用-----
         Y1zero[embedded_freq, k:k+3] = amp * Y1zero[embedded_freq, k:k+3]
 
-        # --CSP2を求める----------
+        # ------------------------------
+        # 4th: CSP2を求める
+        # ------------------------------
         Yspec   = Y1emb + Y2spec        # 埋め込み信号を利用している(Y1emb)
         XY2         = Yspec[:, k+K:k+2*K] * np.conj(Xspec[:, k+K:k+2*K])  # 相互相関(周波数領域)
         XY2abs       = np.abs(XY2)
@@ -217,7 +229,9 @@ for num, amp in enumerate(emb_amp):
         CSP2_emb_ave = CSP2_emb_ave[:N]  # いらない後半部を除去
         CSP2_emb_ave = CSP2_emb_ave / np.max(CSP2_emb_ave)  # 最大で割り算
 
-        # --重み付き差分CSPを求める----------
+        # ------------------------------
+        # 5th: 重み付き差分CSPを求める
+        # ------------------------------
         # -重みを計算する-----
         # CSPのピーク位置を計算
         pk_csp, _   = find_peaks(CSP1_ave, threshold=0.01)
@@ -238,9 +252,9 @@ for num, amp in enumerate(emb_amp):
         weight      = weight/np.max(np.abs(weight))  # 正規化
 
 
-        '''---------------
-            7. 重み付け差分CSPによる遅延推定
-        ---------------'''
+        # ------------------------------
+        # 6th: 重み付け差分CSPによる遅延推定
+        # ------------------------------
         # CSPの差分
         CSP_sub     = CSP1_ave - CSP2_ave     # CSPの差分
         CSP_sub     = CSP_sub / np.max(CSP_sub) # 正規化
@@ -248,9 +262,9 @@ for num, amp in enumerate(emb_amp):
         # 重み付け差分CSP
         CSP_wt      = weight*CSP_sub            # 重み付け埋め込み差分CSP
 
-        '''---------------
-            6.2 重み付け差分CSP(埋込周波数のみ)用の重み計算
-        ---------------'''
+        # ------------------------------
+        # 7th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
+        # ------------------------------
         # CSPのピーク位置を計算
         pk_csp, _ = find_peaks(CSP1_emb_ave, threshold=0.01)
         # ピーク位置をピークの大きい順にインデックス取得
@@ -259,9 +273,6 @@ for num, amp in enumerate(emb_amp):
         pk_csp = pk_csp[index[:D]]
         # 第１スピーカの遅延推定 (CSPの最大ピーク位置)
         delay1 = pk_csp[0]
-        # # 重み (CSPから、CSPの最大ピークを除いた、D-1位のピークのみ抽出したもの)
-        # weight      = np.zeros(CSP_ave.size)
-        # weight[pk_csp[1:]] = CSP_ave[pk_csp[1:]]
 
         # 重み
         weight = np.copy(CSP1_emb_ave)
@@ -269,9 +280,9 @@ for num, amp in enumerate(emb_amp):
         weight[weight < TH] = 0
         weight = weight / np.max(np.abs(weight))  # 正規化
 
-        '''---------------
-            7. 重み付け差分CSP(埋込周波数のみ)による遅延推定
-        ---------------'''
+        # ------------------------------
+        # 8th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
+        # ------------------------------
         # CSPの差分
         CSP_emb_sub     = CSP1_emb_ave - CSP2_emb_ave     # CSPの差分
         CSP_emb_sub     = CSP_emb_sub / np.max(CSP_emb_sub) # 正規化
@@ -279,13 +290,9 @@ for num, amp in enumerate(emb_amp):
         # 重み付け差分CSP
         CSP_emb_wt      = weight*CSP_emb_sub            # 重み付け埋め込み差分CSP
 
-        # 重み付き差分CSPの図示
-        # plt.figure()
-        # plt.plot(CSP_ave, 'lightgray')
-        # plt.plot(CSP_wt)
-        # plt.show()
-
-        # ログに溜め込む
+        # ------------------------------
+        # 9th: 計算結果を保存する
+        # ------------------------------
         CSP_data.append(CSP1_ave)
         CSP_emb_data.append(CSP2_ave)
         CSP_sub_data.append(CSP_sub)
@@ -310,9 +317,9 @@ for num, amp in enumerate(emb_amp):
     # print(f' - スピーカ1：{pos_imp[0]/fs*c:.2f}[m] , {1000*pos_imp[0]/fs:.2f}[ms]')
     # print(f' - スピーカ2：{pos_imp[1]/fs*c:.2f}[m] , {1000*pos_imp[1]/fs:.2f}[ms]\n')
 
-    '''---------------
-        遅延量推定精度
-    ---------------'''
+    # ------------------------------
+    # 10th: 遅延量推定精度を求める
+    # ------------------------------
     Delay = []
     for csp1, csp2 in zip(CSP1_data, CSP_emb_wtd_data):
         # 遅延量の推定
@@ -366,9 +373,9 @@ for num, amp in enumerate(emb_amp):
     # print(f' - 正しく検知できる確率: {PR_data[PR_data >= 1].size / PR_data.size:.3f}\n')
 
 
-    '''---------------
-        音質評価
-    ---------------'''
+    # ------------------------------
+    # 11th: 音質評価
+    # ------------------------------
     # 時間波形
     frames  = min([Y1spec.shape[1], Y1zero.shape[1]])
     y1_orig = istft(Y1spec[:,:frames], hop_length=S)
@@ -393,7 +400,9 @@ for num, amp in enumerate(emb_amp):
 dte_data = np.array(dte_data)
 pesq_data = np.array(pesq_data)
 
-# --埋込強度の変化に伴う推定誤差結果の変化をプロット----------
+# ------------------------------
+# 12th: 埋込強度の変化に伴う推定誤差結果の変化をプロット
+# ------------------------------
 fig = plt.figure(num='埋込強度変化', figsize=(6, 3))
 plt.subplots_adjust(bottom=0.15)
 ax1 = fig.add_subplot(1, 1, 1)
