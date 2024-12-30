@@ -7,6 +7,7 @@ Created by FreReRiku on 2024/12/30
 import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
+import csv
 from pesq import pesq
 from librosa import stft, istft, resample
 from scipy.signal import find_peaks
@@ -47,11 +48,11 @@ pos_st_frame = np.arange(0, Tn*3, 3)
 # CSPの最大値に対するノイズと判定する振幅比のしきい値
 TH  = 0.2
 
-# 埋め込む振幅の設定
+# -埋め込む振幅の設定-----
 # ループ回数
 loop_times = 25
 emb_amp    = np.linspace(0, 1, loop_times)
-# 埋め込む位相の設定
+# -埋め込む位相の設定-----
 emb_phase  = 0
 
 # ゼロ除算回避定数
@@ -59,10 +60,21 @@ eps = 1e-20
 
 dte_data, pesq_data = [], []
 
-print('[ 設定条件 ]')
-print(f' - ゼロを埋め込む周波数ビンの数：{D}bin/{N+1}bin中')
-print(f' - １回の検知で埋め込むフレーム数：{K}フレーム')
-print(f' - 試行回数：{len(pos_st_frame)}回\n')
+init_settings = [
+    ['distance_estimation'],
+    ['設定条件'],
+    ['ゼロを埋め込む周波数ビンの数', '1回の検知で埋め込むフレーム数', '試行回数'],
+    [f'{D}bin/{N+1}bin', f'{K}フレーム', f'{len(pos_st_frame)}']
+]
+
+with open('init_information.csv', mode='w', newline='', encoding='utf-8') as file:
+    writer = csv.writer(file)
+
+    # データを書き込む
+    writer.writerows(init_settings)
+
+print('CSV process completed.')
+    
 
 
 for num, amp in enumerate(emb_amp):
@@ -168,29 +180,41 @@ for num, amp in enumerate(emb_amp):
         # ------------------------------
         # 2nd: CSP1を求める
         # ------------------------------
-        XY1          = Yspec[:, k:k+K] * np.conj(Xspec[:, k:k+K])    # 相互相関(周波数領域)
-        XY1abs       = np.abs(XY1)                # 相互相関の絶対値(周波数領域)
-        XY1abs[XY1abs < eps] = eps                # 分母がほぼ0になるのを防止
-        CSP1_sp      = XY1/XY1abs                  # 白色化相互相関(周波数領域)
-        CSP1         = np.mean(CSP1_sp, axis=1)   # 時間方向で平均
-        CSP1_ave     = irfft(CSP1, axis=0)        # 逆STFT
+        # 相互相関(周波数領域)
+        XY1          = Yspec[:, k:k+K] * np.conj(Xspec[:, k:k+K])
+        # 相互相関の絶対値(周波数領域)
+        XY1abs       = np.abs(XY1)
+        # 分母がほぼ0になるのを防止
+        XY1abs[XY1abs < eps] = eps
+        # 白色化相互相関(周波数領域)
+        CSP1_sp      = XY1/XY1abs
+        # 時間方向で平均
+        CSP1         = np.mean(CSP1_sp, axis=1)
+        # 逆STFT
+        CSP1_ave     = irfft(CSP1, axis=0)
 
-        # CSPの整形
-        CSP1_ave     = CSP1_ave[:N]               # いらない後半部を除去
-        CSP1_ave     = CSP1_ave/np.max(CSP1_ave)   # 最大で割り算
+        # -CSP0の整形-----
+        # いらない後半部を除去
+        CSP1_ave     = CSP1_ave[:N]
+        # 最大で割り算
+        CSP1_ave     = CSP1_ave/np.max(CSP1_ave)
 
         # --ゼロ埋め込み周波数の決定----------
-        pos         = np.argsort(-np.abs(CSP1))  # 振幅(周波数?)の大きい順にインデックスを取得
-        embedded_freq   = pos[:D]                # CSPの最大D個の周波数
+        # 振幅(周波数?)の大きい順にインデックスを取得
+        pos         = np.argsort(-np.abs(CSP1))
+        # CSPの最大D個の周波数
+        embedded_freq   = pos[:D]
 
         # --CSP1(埋込周波数のみ)を求める----------
         CSP1_emb = np.zeros_like(CSP1)
         CSP1_emb[embedded_freq]     = CSP1[embedded_freq]
-        CSP1_emb_ave     = irfft(CSP1_emb, axis=0)        # 逆STFT
+        CSP1_emb_ave     = irfft(CSP1_emb, axis=0)
 
-        # CSPの整形
-        CSP1_emb_ave     = CSP1_emb_ave[:N]               # いらない後半部を除去
-        CSP1_emb_ave     = CSP1_emb_ave/np.max(CSP1_emb_ave)   # 最大で割り算
+        # -CSP1の整形-----
+        # いらない後半部を除去
+        CSP1_emb_ave     = CSP1_emb_ave[:N]
+        # 最大で割り算
+        CSP1_emb_ave     = CSP1_emb_ave/np.max(CSP1_emb_ave)
 
         # ------------------------------
         # 3rd: 振幅変調と位相変調
@@ -208,26 +232,35 @@ for num, amp in enumerate(emb_amp):
         # ------------------------------
         # 4th: CSP2を求める
         # ------------------------------
-        Yspec   = Y1emb + Y2spec        # 埋め込み信号を利用している(Y1emb)
-        XY2         = Yspec[:, k+K:k+2*K] * np.conj(Xspec[:, k+K:k+2*K])  # 相互相関(周波数領域)
+        # 埋め込み信号を利用している(Y1emb)
+        Yspec   = Y1emb + Y2spec        
+        # 相互相関(周波数領域)
+        XY2         = Yspec[:, k+K:k+2*K] * np.conj(Xspec[:, k+K:k+2*K])
+        # 相互相関の絶対値(周波数領域)
         XY2abs       = np.abs(XY2)
-        XY2abs[XY2abs < eps] = eps                # 分母がほぼ0になるのを防止
-        CSP2_sp      = XY2 / XY2abs                  # 白色化相互相関(周波数領域)
-        CSP2         = np.mean(CSP2_sp, axis=1)   # 時間方向で平均
-        CSP2_ave     = irfft(CSP2, axis=0)        # 逆STFT
+        # 分母がほぼ0になるのを防止
+        XY2abs[XY2abs < eps] = eps
+        # 白色化相互相関(周波数領域)
+        CSP2_sp      = XY2 / XY2abs
+        # 時間方向で平均
+        CSP2         = np.mean(CSP2_sp, axis=1)
+        # 逆STFT
+        CSP2_ave     = irfft(CSP2, axis=0)
 
-        # CSPの整形
-        CSP2_ave     = CSP2_ave[:N]               # いらない後半部を除去
-        CSP2_ave     = CSP2_ave/np.max(CSP2_ave)   # 最大で割り算
+        # -CSP2の整形-----
+        # いらない後半部を除去
+        CSP2_ave     = CSP2_ave[:N]
+        # 最大で割り算
+        CSP2_ave     = CSP2_ave/np.max(CSP2_ave)
 
         # --CSP2(埋込周波数のみ)を求める----------
         CSP2_emb = np.zeros_like(CSP2)
         CSP2_emb[embedded_freq]     = CSP2[embedded_freq]
-        CSP2_emb_ave = irfft(CSP2_emb, axis=0)  # 逆STFT
+        CSP2_emb_ave = irfft(CSP2_emb, axis=0)
 
-        # CSPの整形
-        CSP2_emb_ave = CSP2_emb_ave[:N]  # いらない後半部を除去
-        CSP2_emb_ave = CSP2_emb_ave / np.max(CSP2_emb_ave)  # 最大で割り算
+        # -CSP2(埋込周波数のみ)の整形-----
+        CSP2_emb_ave = CSP2_emb_ave[:N]
+        CSP2_emb_ave = CSP2_emb_ave / np.max(CSP2_emb_ave)
 
         # ------------------------------
         # 5th: 重み付き差分CSPを求める
@@ -241,9 +274,6 @@ for num, amp in enumerate(emb_amp):
         pk_csp      = pk_csp[index[:D]]
         # 第１スピーカの遅延推定 (CSPの最大ピーク位置)
         delay1      = pk_csp[0]
-        # # 重み (CSPから、CSPの最大ピークを除いた、D-1位のピークのみ抽出したもの)
-        # weight      = np.zeros(CSP_ave.size)
-        # weight[pk_csp[1:]] = CSP_ave[pk_csp[1:]]
 
         # 重み
         weight      = np.copy(CSP1_ave)
@@ -260,7 +290,7 @@ for num, amp in enumerate(emb_amp):
         CSP_sub     = CSP_sub / np.max(CSP_sub) # 正規化
 
         # 重み付け差分CSP
-        CSP_wt      = weight*CSP_sub            # 重み付け埋め込み差分CSP
+        CSP_wt_sub     = weight*CSP_sub            # 重み付け埋め込み差分CSP
 
         # ------------------------------
         # 7th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
@@ -296,7 +326,7 @@ for num, amp in enumerate(emb_amp):
         CSP_data.append(CSP1_ave)
         CSP_emb_data.append(CSP2_ave)
         CSP_sub_data.append(CSP_sub)
-        CSP_wtd_data.append(CSP_wt)
+        CSP_wtd_data.append(CSP_wt_sub)
         CSP1_data.append(CSP1_emb_ave)
         CSP2_data.append(CSP2_emb_ave)
         CSP_emb_sub_data.append(CSP_emb_sub)
@@ -324,7 +354,7 @@ for num, amp in enumerate(emb_amp):
     for csp1, csp2 in zip(CSP1_data, CSP_emb_wtd_data):
         # 遅延量の推定
         csp1_imp = []
-        csp1_peaks, _ = find_peaks(csp1, height=0.7)
+        csp1_peaks, _ = find_peaks(csp1, height=0.5)
         csp1_imp.append(csp1_peaks[0])
         #delay1 = np.argmax(csp1)
         delay1 = csp1_imp[0]
