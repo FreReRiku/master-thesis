@@ -67,7 +67,7 @@ init_settings = [
     [f'{D}bin/{N+1}bin', f'{K}フレーム', f'{len(pos_st_frame)}']
 ]
 
-with open('init_information.csv', mode='w', newline='', encoding='utf-8') as file:
+with open('./../../data/distance_estimation/init_information.csv', mode='w', newline='', encoding='utf-8') as file:
     writer = csv.writer(file)
 
     # データを書き込む
@@ -84,11 +84,11 @@ for num, amp in enumerate(emb_amp):
     # ------------------------------
 
     # ファイル名
-    file_name_impulse1  = f'./../../sound_data/room_simulation/impulse_signal_ch1_{fs}Hz.wav'
-    file_name_impulse2  = f'./../../sound_data/room_simulation/impulse_signal_ch2_{fs}Hz.wav'
-    file_name_origin    = f'./../../sound_data/original/music{music_type}_mono.wav'
-    file_name_spk1 = f'./../../sound_data/room_simulation/music{music_type}_room_ch1_{fs}Hz.wav'
-    file_name_spk2 = f'./../../sound_data/room_simulation/music{music_type}_room_ch2_{fs}Hz.wav'
+    file_name_impulse1  = f'./../../sound/room_simulation/impulse_signal_ch1_{fs}Hz.wav'
+    file_name_impulse2  = f'./../../sound/room_simulation/impulse_signal_ch2_{fs}Hz.wav'
+    file_name_origin    = f'./../../sound/original/music{music_type}_mono.wav'
+    file_name_spk1 = f'./../../sound/room_simulation/music{music_type}_room_ch1_{fs}Hz.wav'
+    file_name_spk2 = f'./../../sound/room_simulation/music{music_type}_room_ch2_{fs}Hz.wav'
     # 読み込み
     impulse1, _ = sf.read(file_name_impulse1)
     impulse2, _ = sf.read(file_name_impulse2)
@@ -423,7 +423,7 @@ for num, amp in enumerate(emb_amp):
 
     pesq_data.append(score)
 
-    sf.write(f'./../../sound_data/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, fs)
+    sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, fs)
     # 確認用の表示
     print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
@@ -451,5 +451,5 @@ lines1, labels1 = ax1.get_legend_handles_labels()
 lines2, labels2 = ax2.get_legend_handles_labels()
 ax2.legend(lines1+lines2, labels1+labels2, loc='lower right')
 
-plt.savefig('./../../figures/distance_estimation/Amp_vs_PESQ.png')
+plt.savefig('./../../figure/distance_estimation/Amp_vs_PESQ.png')
 # plt.show()
