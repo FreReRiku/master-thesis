@@ -18,7 +18,7 @@ from scipy.fft import irfft
 # ------------------------------
 
 # 音源の選択 (1 or 2)
-music_type = 1
+music_type = 2
 # サンプリング周波数 [Hz]
 fs  = 44100
 # 音速 [m/s]
@@ -60,22 +60,16 @@ eps = 1e-20
 
 dte_data, pesq_data = [], []
 
-init_settings = [
+
+with open('./../../data/distance_estimation/init_information.csv', mode='w', newline='', encoding='utf-8') as file:
+    writer = csv.writer(file)
+    # データを書き込む
+    writer.writerows( [
     ['distance_estimation'],
     ['設定条件'],
     ['ゼロを埋め込む周波数ビンの数', '1回の検知で埋め込むフレーム数', '試行回数'],
     [f'{D}bin/{N+1}bin', f'{K}フレーム', f'{len(pos_st_frame)}']
-]
-
-with open('./../../data/distance_estimation/init_information.csv', mode='w', newline='', encoding='utf-8') as file:
-    writer = csv.writer(file)
-
-    # データを書き込む
-    writer.writerows(init_settings)
-
-print('CSV process completed.')
-    
-
+])
 
 for num, amp in enumerate(emb_amp):
 
@@ -314,11 +308,12 @@ for num, amp in enumerate(emb_amp):
         # 8th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
         # ------------------------------
         # CSPの差分
-        CSP_emb_sub     = CSP1_emb_ave - CSP2_emb_ave     # CSPの差分
-        CSP_emb_sub     = CSP_emb_sub / np.max(CSP_emb_sub) # 正規化
+        CSP_emb_sub     = CSP1_emb_ave - CSP2_emb_ave
+        # 正規化
+        CSP_emb_sub     = CSP_emb_sub / np.max(CSP_emb_sub)
 
-        # 重み付け差分CSP
-        CSP_emb_wt      = weight*CSP_emb_sub            # 重み付け埋め込み差分CSP
+        # 重み付け埋込差分CSP
+        CSP_emb_wt      = weight*CSP_emb_sub
 
         # ------------------------------
         # 9th: 計算結果を保存する
@@ -451,5 +446,5 @@ lines1, labels1 = ax1.get_legend_handles_labels()
 lines2, labels2 = ax2.get_legend_handles_labels()
 ax2.legend(lines1+lines2, labels1+labels2, loc='lower right')
 
-plt.savefig('./../../figure/distance_estimation/Amp_vs_PESQ.png')
+plt.savefig(f'./../../figure/distance_estimation/music{music_type}_Amp_vs_PESQ.png')
 # plt.show()
