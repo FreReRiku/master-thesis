@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 import csv
+import os
 from pesq import pesq
 from librosa import stft, istft, resample
 from scipy.signal import find_peaks
@@ -59,17 +60,41 @@ emb_phase  = 0
 eps = 1e-20
 
 dte_data, pesq_data = [], []
+distance_spk1 = []
+distance_spk2 = []
 
+# ------------------------------
+# ファイル出力
+# ------------------------------
 
-with open('./../../data/distance_estimation/init_information.csv', mode='w', newline='', encoding='utf-8') as file:
-    writer = csv.writer(file)
-    # データを書き込む
+with open('./../../data/distance_estimation/init_information.csv', mode='w', newline='', encoding='utf-8') as file_init_information:
+    writer = csv.writer(file_init_information)
     writer.writerows( [
     ['distance_estimation'],
     ['設定条件'],
     ['ゼロを埋め込む周波数ビンの数', '1回の検知で埋め込むフレーム数', '試行回数'],
     [f'{D}bin/{N+1}bin', f'{K}フレーム', f'{len(pos_st_frame)}']
 ])
+
+with open('./../../data/distance_estimation/distance_and_arrival_spk1.csv', mode='w', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
+    writer = csv.writer(file_distance_and_arrival_spk1)
+    writer.writerow(['distance_estimation'])
+    writer.writerow(['マイク・スピーカ距離・到来時間'])
+
+with open('./../../data/distance_estimation/distance_and_arrival_spk2.csv', mode='w', newline='', encoding='utf-8') as file_distance_and_arrival_spk2:
+    writer = csv.writer(file_distance_and_arrival_spk2)
+    writer.writerow(['distance_estimation'])
+    writer.writerow(['マイク・スピーカ距離・到来時間'])
+
+with open('./../../data/distance_estimation/peak_ratio.csv', mode='w', newline='', encoding='utf-8') as file_peak_ratio:
+    writer = csv.writer(file_peak_ratio)
+    writer.writerow(['distance_estimation'])
+    writer.writerow(['ピーク比(PR: Peak Ratio)'])
+
+with open('./../../data/distance_estimation/pesq.csv', mode='w', newline='', encoding='utf-8') as file_pesq:
+    writer = csv.writer(file_pesq)
+    writer.writerow(['distance_estimation'])
+    writer.writerow(['音質'])
 
 for num, amp in enumerate(emb_amp):
 
@@ -338,9 +363,14 @@ for num, amp in enumerate(emb_amp):
     CSP_emb_sub_data = np.array(CSP_emb_sub_data)     # 差分CSP
     CSP_emb_wtd_data = np.array(CSP_emb_wtd_data)     # 重み付き差分CSP
 
-    # print('[ マイク・スピーカ距離・到来時間 ]')
-    # print(f' - スピーカ1：{pos_imp[0]/fs*c:.2f}[m] , {1000*pos_imp[0]/fs:.2f}[ms]')
-    # print(f' - スピーカ2：{pos_imp[1]/fs*c:.2f}[m] , {1000*pos_imp[1]/fs:.2f}[ms]\n')
+    distance_spk1 = [f"スピーカ1：{pos_imp[0]/fs*c:.2f}[m] , {1000*pos_imp[0]/fs:.2f}[ms]"]
+    distance_spk2 = [f"スピーカ2：{pos_imp[1]/fs*c:.2f}[m] , {1000*pos_imp[1]/fs:.2f}[ms]"]
+    with open('./../../data/distance_estimation/distance_and_arrival_spk1.csv', mode='a', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
+        writer = csv.writer(file_distance_and_arrival_spk1)
+        writer.writerow([f'{distance_spk1}'])
+    with open('./../../data/distance_estimation/distance_and_arrival_spk2.csv', mode='a', newline='', encoding='utf-8') as file_distance_and_arrival_spk2:
+        writer = csv.writer(file_distance_and_arrival_spk2)
+        writer.writerow([f'{distance_spk2}'])
 
     # ------------------------------
     # 10th: 遅延量推定精度を求める
@@ -392,10 +422,17 @@ for num, amp in enumerate(emb_amp):
 
     PR_data = np.array(PR_data)
 
-    # print('[ ピーク比(PR: Peak Ratio) ]')
-    # print(f' - 平均PR: {np.mean(PR_data):.2f}')
-    # print(f' - 最小PR: {np.min(PR_data):.2f}')
-    # print(f' - 正しく検知できる確率: {PR_data[PR_data >= 1].size / PR_data.size:.3f}\n')
+    with open('./../../data/distance_estimation/peak_ratio.csv', mode='a', newline='', encoding='utf-8') as file_peak_ratio:
+        writer = csv.writer(file_peak_ratio)
+        writer.writerow([f' - 平均PR: {np.mean(PR_data):.2f}'])
+        writer.writerow([f' - 最小PR: {np.min(PR_data):.2f}'])
+        writer.writerow([f' - 正しく検知できる確率: {PR_data[PR_data >= 1].size / PR_data.size:.3f}'])
+
+
+    print()
+    print(f' - 平均PR: {np.mean(PR_data):.2f}')
+    print(f' - 最小PR: {np.min(PR_data):.2f}')
+    print(f' - 正しく検知できる確率: {PR_data[PR_data >= 1].size / PR_data.size:.3f}\n')
 
 
     # ------------------------------
@@ -412,7 +449,12 @@ for num, amp in enumerate(emb_amp):
     score = pesq(16000, y1_orig_ds, y1_emb_ds)
     # SNR
     snr = 20 * np.log10(sum(y1_orig ** 2) / sum((y1_orig - y1_emb) ** 2))
-    # print('[ 音質 ]')
+
+    with open('./../../data/distance_estimation/pesq.csv', mode='a', newline='', encoding='utf-8') as file_pesq:
+        writer = csv.writer(file_pesq)
+        writer.writerow([f' - PESQ :  {score:.2f}'])
+        writer.writerow([f' - SNR  :  {snr:.2f} [dB]'])
+    # print()
     # print(f' - PESQ :  {score:.2f}')
     # print(f' - SNR  :  {snr:.2f} [dB]')
 
