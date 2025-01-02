@@ -458,7 +458,7 @@ for num, amp in enumerate(emb_amp):
     sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, fs)
 
     # 確認用の表示
-    print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
+    # print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
 dte_data = np.array(dte_data)
 pesq_data = np.array(pesq_data)
