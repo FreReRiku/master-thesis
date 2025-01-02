@@ -21,4 +21,3 @@ dirs=(
 for dir in "${dirs[@]}"; do
     mkdir -p "$dir"
 done
-
