@@ -24,12 +24,11 @@ fs  = 44100
 # 音速 [m/s]
 c   = 340.29
 # サンプル長 (fs * s)
-L   = fs*10
+L   = fs * 10
 # フレーム長
 N   = 1024
 # ホップ長
 S   = 512
-
 
 # スタートポイント
 st = 1000
@@ -45,7 +44,7 @@ K = 40
 D   = np.floor(N*0.1).astype(int)
 # スタートのフレーム位置(ここからKフレーム用いる)
 pos_st_frame = np.arange(0, Tn*3, 3)
-# CSPの最大値に対するノイズと判定する振幅比のしきい値
+# CSPの最大値に対するノイズと判定する振幅比のしきい値(Threshold)
 TH  = 0.2
 
 # -埋め込む振幅の設定-----
@@ -58,13 +57,17 @@ emb_phase  = 0
 # ゼロ除算回避定数
 eps = 1e-20
 
-dte_data, pesq_data = [], []
+# データ格納用のリストの初期化
+dte_data = []
+pesq_data = []
 distance_spk1 = []
 distance_spk2 = []
 
 # ------------------------------
 # ファイル出力
 # ------------------------------
+
+# 初期条件の出力
 with open(f'./../../data/distance_estimation/music{music_type}_mono/init_information.csv', mode='w', newline='', encoding='utf-8') as file_init_information:
     writer = csv.writer(file_init_information)
     writer.writerows( [
@@ -72,18 +75,22 @@ with open(f'./../../data/distance_estimation/music{music_type}_mono/init_informa
     [f'{D}',f'{K}',f'{len(pos_st_frame)}']
 ])
 
+# スピーカー1におけるマイク・スピーカー間距離、到来時間の出力
 with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk1.csv', mode='w', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
     writer = csv.writer(file_distance_and_arrival_spk1)
     writer.writerow(['マイク・スピーカ間距離[m]','到来時間[ms]'])
 
+# スピーカー2におけるマイク・スピーカー間距離、到来時間の出力
 with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk2.csv', mode='w', newline='', encoding='utf-8') as file_distance_and_arrival_spk2:
     writer = csv.writer(file_distance_and_arrival_spk2)
     writer.writerow(['マイク・スピーカ間距離[m]','到来時間[ms]'])
 
+# ピークレシオ・検知確率の出力
 with open(f'./../../data/distance_estimation/music{music_type}_mono/peak_ratio.csv', mode='w', newline='', encoding='utf-8') as file_peak_ratio:
     writer = csv.writer(file_peak_ratio)
     writer.writerow(['平均Peak Ratio','最小Peak Ratio','正しく検知できる確率[%]'])
 
+# PESQ、SN比の出力
 with open(f'./../../data/distance_estimation/music{music_type}_mono/pesq.csv', mode='w', newline='', encoding='utf-8') as file_pesq:
     writer = csv.writer(file_pesq)
     writer.writerow(['PESQ','SNR[dB]'])
@@ -278,48 +285,55 @@ for num, amp in enumerate(emb_amp):
         # ------------------------------
         # -重みを計算する-----
         # CSPのピーク位置を計算
-        pk_csp, _   = find_peaks(CSP1_ave, threshold=0.01)
+        pk_csp, _  = find_peaks(CSP1_ave, threshold=0.01)
         # ピーク位置をピークの大きい順にインデックス取得
-        index          = np.argsort(-CSP1_ave[pk_csp])
+        index      = np.argsort(-CSP1_ave[pk_csp])
         # CSPの大きい順にD位のピーク位置をピークの大きい順に取得
-        pk_csp      = pk_csp[index[:D]]
+        pk_csp     = pk_csp[index[:D]]
         # 第１スピーカの遅延推定 (CSPの最大ピーク位置)
-        delay1      = pk_csp[0]
+        delay1     = pk_csp[0]
 
         # 重み
         weight      = np.copy(CSP1_ave)
-        weight[delay1-3:delay1+3] = 0    # 推定した第１スピーカのピークを除去
+        # 推定した第１スピーカのピークを除去
+        weight[delay1-3:delay1+3] = 0
+        # 閾値以下の値を0にする
         weight[weight < TH]   = 0
-        weight      = weight/np.max(np.abs(weight))  # 正規化
+        # 正規化
+        weight      = weight/np.max(np.abs(weight))
 
 
         # ------------------------------
         # 6th: 重み付け差分CSPによる遅延推定
         # ------------------------------
         # CSPの差分
-        CSP_sub     = CSP1_ave - CSP2_ave     # CSPの差分
-        CSP_sub     = CSP_sub / np.max(CSP_sub) # 正規化
+        CSP_sub     = CSP1_ave - CSP2_ave
+        # 正規化
+        CSP_sub     = CSP_sub / np.max(CSP_sub)
 
-        # 重み付け差分CSP
-        CSP_wt_sub     = weight*CSP_sub            # 重み付け埋め込み差分CSP
+        # 重み付け埋込差分CSP
+        CSP_wt_sub  = weight*CSP_sub
 
         # ------------------------------
         # 7th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
         # ------------------------------
         # CSPのピーク位置を計算
-        pk_csp, _ = find_peaks(CSP1_emb_ave, threshold=0.01)
+        pk_csp, _  = find_peaks(CSP1_emb_ave, threshold=0.01)
         # ピーク位置をピークの大きい順にインデックス取得
-        index = np.argsort(-CSP1_emb_ave[pk_csp])
+        index      = np.argsort(-CSP1_emb_ave[pk_csp])
         # CSPの大きい順にD位のピーク位置をピークの大きい順に取得
-        pk_csp = pk_csp[index[:D]]
+        pk_csp     = pk_csp[index[:D]]
         # 第１スピーカの遅延推定 (CSPの最大ピーク位置)
-        delay1 = pk_csp[0]
+        delay1     = pk_csp[0]
 
         # 重み
         weight = np.copy(CSP1_emb_ave)
-        weight[delay1 - 3:delay1 + 3] = 0  # 推定した第１スピーカのピークを除去
+        # 推定した第１スピーカのピークを除去
+        weight[delay1 - 3:delay1 + 3] = 0
+        # 閾値以下の値を除去
         weight[weight < TH] = 0
-        weight = weight / np.max(np.abs(weight))  # 正規化
+        # 正規化
+        weight = weight / np.max(np.abs(weight))
 
         # ------------------------------
         # 8th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
@@ -456,7 +470,7 @@ for num, amp in enumerate(emb_amp):
     sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, fs)
 
     # 確認用の表示
-    # print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
+    print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
 dte_data = np.array(dte_data)
 pesq_data = np.array(pesq_data)
