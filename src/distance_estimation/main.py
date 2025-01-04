@@ -29,6 +29,8 @@ L   = fs * 10
 N   = 1024
 # ホップ長
 S   = 512
+# 時間軸
+t = np.arange(N)/fs
 
 # スタートポイント
 st = 1000
@@ -50,6 +52,7 @@ TH  = 0.2
 # -埋め込む振幅の設定-----
 # ループ回数
 loop_times = 25
+# 埋め込む振幅
 emb_amp    = np.linspace(0, 1, loop_times)
 # -埋め込む位相の設定-----
 emb_phase  = 0
@@ -57,10 +60,14 @@ emb_phase  = 0
 # ゼロ除算回避定数
 eps = 1e-20
 
-# データ格納用のリストの初期化
+# -データ格納用のリストの初期化-----
+# 遅延推定誤差記録用
 dte_data = []
+# 音質評価記録用
 pesq_data = []
+# スピーカー1とマイク間の距離・到来時間の記録用
 distance_spk1 = []
+# スピーカー2とマイク間の距離・到来時間の記録用
 distance_spk2 = []
 
 # ------------------------------
@@ -95,13 +102,13 @@ with open(f'./../../data/distance_estimation/music{music_type}_mono/pesq.csv', m
     writer = csv.writer(file_pesq)
     writer.writerow(['PESQ','SNR[dB]'])
 
-for num, amp in enumerate(emb_amp):
 
+for num, amp in enumerate(emb_amp):
     # ------------------------------
     # オーディオファイルの読み込み
     # ------------------------------
 
-    # ファイル名
+    # ファイルパスの指定
     file_name_impulse1  = f'./../../sound/room_simulation/impulse_signal_ch1_{fs}Hz.wav'
     file_name_impulse2  = f'./../../sound/room_simulation/impulse_signal_ch2_{fs}Hz.wav'
     file_name_origin    = f'./../../sound/original/music{music_type}_mono.wav'
@@ -114,8 +121,6 @@ for num, amp in enumerate(emb_amp):
     y1, _       = sf.read(file_name_spk1)
     y2, _       = sf.read(file_name_spk2)
 
-    # 時間軸
-    t = np.arange(N)/fs
 
     # 音声のトリミング
     x_0       = x[st:ed]          # スピーカ出力音声のトリミング
@@ -125,14 +130,15 @@ for num, amp in enumerate(emb_amp):
     # スペクトログラム
     Xspec   = stft(x_0, n_fft=2*N, hop_length=S, win_length=N, center=False)
     Y1spec  = stft(y1_0, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
-    # Y1specのサイズを調べたい。
-    # print("Y1specのサイズ:", Y1spec.shape)
-
     Y2spec  = stft(y2_0, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
     Y1zero  = stft(y1, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
-
+    # デバッグ用: 各スペクトログラムのサイズを調べる。
+    print("Xspecのサイズ:", Xspec.shape)
+    print("Y1specのサイズ:", Y1spec.shape)
+    print("Y2specのサイズ:", Y2spec.shape)
+    print("Y1zeroのサイズ:", Y1zero.shape)
     # 保存用の配列
-    CSP0_data, CSP_data, CSP1_data, CSP2_data, CSP_emb_data, CSP_sub_data, CSP_wtd_data , CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
+    CSP0_data, CSP_data, CSP1_data, CSP2_data, CSP_emb_data, CSP_sub_data, CSP_wtd_data, CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
 
 
     # ------------------------------
@@ -140,7 +146,7 @@ for num, amp in enumerate(emb_amp):
     # ------------------------------
     for k in pos_st_frame:
 
-        # マイク入力音声のスペクトログラム
+        # マイク入力音声のスペクトログラム(スペクトログラムの合成)
         Yspec = Y1spec + Y2spec
 
         # --CSP0を求める(GCC-PHAT法)----------
@@ -171,20 +177,25 @@ for num, amp in enumerate(emb_amp):
 
 
     # --インパルスのピーク位置の推定----------
+    # インパルス応答ピークの記録用
     pos_imp = []
+    # 遅延時間を除いたインパルス応答ピークの記録用
     pos_imp_sub_d = []
+
+    # find_peaks関数を用いて、ピークを推定・記録
     for impulse_ in [impulse1, impulse2]:
         pos_peaks, _ = find_peaks(impulse_, height=0.2)
         pos_imp.append(pos_peaks[0])
         pos_imp_sub_d.append(pos_peaks[0]-d)
 
+    # numpyに変換
     pos_imp = np.array(pos_imp)
     pos_imp_sub_d = np.array(pos_imp_sub_d)
 
-    # 音声のトリミング
+    # 遅延時間を考慮した音声のトリミング
     x       = x[st-d:ed-d]
 
-    # スペクトログラム
+    # Xspecを更新し、遅延時間を考慮したスペクトログラムを生成
     Xspec   = stft(x, n_fft=2*N, hop_length=S, win_length=N, center=False)
 
     for k in pos_st_frame:
