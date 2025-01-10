@@ -106,13 +106,13 @@ for num, amp in enumerate(embedding_amplitudes):
     # ------------------------------
 
     # ファイルパスの指定
-    file_name_impulse1  = f'./../../sound/room_simulation/impulse_signal_ch1_{sampling_rate}Hz.wav'
-    file_name_impulse2  = f'./../../sound/room_simulation/impulse_signal_ch2_{sampling_rate}Hz.wav'
-    file_name_origin    = f'./../../sound/original/music{music_type}_mono.wav'
-    file_name_origin_long    = f'./../../sound/original/long_music{music_type}_mono.wav'
-    file_name_spk1 = f'./../../sound/room_simulation/music{music_type}_room_ch1_{sampling_rate}Hz.wav'
-    file_name_spk2 = f'./../../sound/room_simulation/music{music_type}_room_ch2_{sampling_rate}Hz.wav'
-    file_name_spk_long = f'./../../sound/room_simulation/long_music{music_type}_room_ch1_{sampling_rate}Hz.wav'
+    file_name_impulse1      = f'./../../sound/room_simulation/impulse_signal_ch1_{sampling_rate}Hz.wav'
+    file_name_impulse2      = f'./../../sound/room_simulation/impulse_signal_ch2_{sampling_rate}Hz.wav'
+    file_name_origin        = f'./../../sound/original/music{music_type}_mono.wav'
+    file_name_origin_long   = f'./../../sound/original/long_music{music_type}_mono.wav'
+    file_name_spk1          = f'./../../sound/room_simulation/music{music_type}_room_ch1_{sampling_rate}Hz.wav'
+    file_name_spk2          = f'./../../sound/room_simulation/music{music_type}_room_ch2_{sampling_rate}Hz.wav'
+    file_name_spk_long      = f'./../../sound/room_simulation/long_music{music_type}_room_ch1_{sampling_rate}Hz.wav'
     # 読み込み
     impulse1, _ = sf.read(file_name_impulse1)
     impulse2, _ = sf.read(file_name_impulse2)
@@ -123,14 +123,21 @@ for num, amp in enumerate(embedding_amplitudes):
     ylong, _    = sf.read(file_name_spk_long)
 
     # スペクトログラム
-    Xspec   = stft(x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
-    Y1spec  = stft(y1, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
-    Y2spec  = stft(y2, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
-    Y1zero  = stft(ylong, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+    xspec   = stft(x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
+    y1spec  = stft(y1, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+    y2spec  = stft(y2, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+    y1zero  = stft(ylong, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
 
     # 保存用の配列
-    csp0_values, csp1_values, csp2_values, embedded_freq_csp1_values, embedded_freq_csp2_values,  csp_difference_values, weighted_csp_values, CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
-
+    csp0_values = []
+    csp1_values = []
+    csp2_values = []
+    embedded_freq_csp1_values = []
+    embedded_freq_csp2_values = []
+    csp_difference_values     = []
+    weighted_csp_difference_values      = []
+    embedded_freq_csp_difference        = []
+    embedded_freq_weighted_csp_values   = []
 
     # ------------------------------
     # 1st: CSP0, 及び 遅延距離d_0 の推定
@@ -138,89 +145,97 @@ for num, amp in enumerate(embedding_amplitudes):
     for frame_start_index in pos_st_frame:
 
         # マイク入力音声のスペクトログラム(スペクトログラムの合成)
-        Yspec = Y1spec + Y2spec
+        yspec = y1spec + y2spec
 
         # --CSP0を求める(GCC-PHAT法)----------
-        # 相互相関(周波数領域)
-        XY0 = Yspec[:, frame_start_index:frame_start_index + num_embedding_frames] * np.conj(Xspec[:, frame_start_index:frame_start_index + num_embedding_frames])
-        # 相互相関の絶対値(周波数領域)
-        XY0abs = np.abs(XY0)
-        # 分母がほぼ0になるのを防止
-        XY0abs[XY0abs < epsilon] = epsilon
-        # 白色化相互相関(周波数領域)
-        CSP0_sp = XY0 / XY0abs
-        # 時間方向で平均
-        CSP0 = np.mean(CSP0_sp, axis=1)
-        # 逆STFT
-        CSP0_ave = irfft(CSP0, axis=0)
+        # クロススペクトラムの計算
+        cross_spectrum_csp0 = xspec[:, frame_start_index : frame_start_index + num_embedding_frames] * np.conj(yspec[:, frame_start_index:frame_start_index + num_embedding_frames])
+        # クロススペクトラムの振幅を計算
+        cross_spectrum_magnitude_csp0 = np.abs(cross_spectrum_csp0)
+        # 振幅がゼロに近い場合のゼロ除算を回避するための調整
+        cross_spectrum_magnitude_csp0[cross_spectrum_magnitude_csp0  < epsilon] = epsilon
+        # 白色化相互スペクトル (周波数領域)
+        csp0_spectral = cross_spectrum_csp0 / cross_spectrum_magnitude_csp0
+        # 周波数領域のCSP0を時間方向で平均
+        csp0_average_spectral = np.mean(csp0_spectral, axis=1)
+        # 周波数領域から時間領域へ変換 (逆STFT)
+        csp0_time_domain = irfft(csp0_average_spectral, axis=0)
 
         # -CSP0の整形-----
-        # いらない後半部を除去
-        CSP0_ave = CSP0_ave[:frame_length]
-        # 最大で割り算
-        CSP0_ave = CSP0_ave / np.max(CSP0_ave)
+        # 不要な後半部を除去
+        csp0_time_domain = csp0_time_domain[:frame_length]
+        # 最大値で正規化
+        csp0_time_domain = csp0_time_domain / np.max(csp0_time_domain)
 
         # -CSP0の保存-----
-        csp0_values.append(CSP0_ave)
+        csp0_values.append(csp0_time_domain)
 
         # -dを推定-----
-        estimated_delay = (np.argmax(csp0_values)-67) # この67という値を変えるとpeak_ratioの結果に影響が出る. 最適な値を動的に導出できるようにしたい
+        # 注: 現在のオフセット値(67)を動的に調整する仕組みが必要
+        estimated_delay = (np.argmax(csp0_values)-67)
 
     # --インパルスのピーク位置の推定----------
-    # インパルス応答ピークの記録用
-    impulse_peak_positions = []
+    # 最初に検出されたインパルス応答のピーク位置の記録用
+    first_detected_peak_positions = []
     # 遅延時間を除いたインパルス応答ピークの記録用
-    adjusted_impulse_peaks = []
+    delay_adjusted_peak_positions = []
 
     # find_peaks関数を用いて、ピークを推定・記録
-    for impulse_ in [impulse1, impulse2]:
-        # scipy.signal.find_peaks関数を使って, impulse_からピークを検出
-        pos_peaks, _ = find_peaks(impulse_, height=0.6)     # height: ピーク位置の閾値
-        impulse_peak_positions.append(pos_peaks[0])
-        adjusted_impulse_peaks.append(pos_peaks[0]-estimated_delay)
+    for impulse_response in [impulse1, impulse2]:
+        # find_peaks関数を使って, ピークを推定・記録
+        peak_positions, _ = find_peaks(impulse_response, height=0.6)        # height: ピーク検出の閾値
+        first_detected_peak_positions.append(peak_positions[0])                    # 最初のピークを記録
+        delay_adjusted_peak_positions.append(peak_positions[0]-estimated_delay)    # 遅延時間を調整
 
-    # numpyに変換
-    impulse_peak_positions = np.array(impulse_peak_positions)
-    adjusted_impulse_peaks = np.array(adjusted_impulse_peaks)
+    # numpy配列に変換
+    first_detected_peak_positions = np.array(first_detected_peak_positions)
+    delay_adjusted_peak_positions = np.array(delay_adjusted_peak_positions)
 
-    # print(impulse_peak_positions)
-    # print(adjusted_impulse_peaks)
+    # デバッグ用
+    # print(first_detected_peak_positions)
+    # print(delay_adjusted_peak_positions)
 
-    # 遅延時間を考慮した音声のトリミング
-    adjusted_x       = xlong[start_sample-estimated_delay:end_sample-estimated_delay]
+    # 遅延時間を考慮して音声信号をトリミング
+    x_delay_adjusted_signal       = xlong[start_sample-estimated_delay : end_sample-estimated_delay]
 
-    # Xspecを更新し、遅延時間を考慮したスペクトログラムを生成
-    Xspec_adjusted   = stft(adjusted_x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
+    # 遅延時間を考慮したスペクトログラムを生成
+    x_delay_adjusted_spectrogram  = stft(
+        x_delay_adjusted_signal,
+        n_fft       = 2 * frame_length,
+        hop_length  = hop_length,
+        win_length  = frame_length,
+        center=False
+    )
 
     for frame_start_index in pos_st_frame:
 
         # 埋め込み用の配列
-        Y1emb   = np.copy(Y1spec)
+        embedded_y1spec   = np.copy(y1spec)
 
-        # マイク入力音声のスペクトログラム
-        Yspec       = Y1spec + Y2spec
+        # マイク入力音声のスペクトログラム (スペクトログラムの合成)
+        yspec       = y1spec + y2spec
 
         # ------------------------------
         # 2nd: CSP1を求める
         # ------------------------------
-        # 相互相関(周波数領域)
-        XY1          = Yspec[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(Xspec_adjusted[:, frame_start_index:frame_start_index+num_embedding_frames])
-        # 相互相関の絶対値(周波数領域)
-        XY1abs       = np.abs(XY1)
-        # 分母がほぼ0になるのを防止
-        XY1abs[XY1abs < epsilon] = epsilon
-        # 白色化相互相関(周波数領域)
-        CSP1_sp      = XY1/XY1abs
-        # 時間方向で平均
-        CSP1         = np.mean(CSP1_sp, axis=1)
-        # 逆STFT
-        CSP1_ave     = irfft(CSP1, axis=0)
+        # クロススペクトラムの計算
+        cross_spectrum_csp1 = x_delay_adjusted_spectrogram[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(yspec[:, frame_start_index:frame_start_index+num_embedding_frames])
+        # クロススペクトラムの振幅を計算
+        cross_spectrum_magnitude_csp1 = np.abs(cross_spectrum_csp1)
+        # 振幅がゼロに近い場合のゼロ除算を回避するための調整
+        cross_spectrum_magnitude_csp1[cross_spectrum_magnitude_csp1 < epsilon] = epsilon
+        # 白色化相互スペクトラム (周波数領域)
+        csp1_spectral = cross_spectrum_csp1 / cross_spectrum_magnitude_csp1
+        # 周波数領域のCSP1を時間方向で平均
+        csp1_average_spectral   = np.mean(csp1_spectral, axis=1)
+        # 周波数領域から時間領域へ変換 (逆STFT)
+        csp1_time_domain     = irfft(csp1_average_spectral, axis=0)
 
         # -CSP0の整形-----
-        # いらない後半部を除去
-        CSP1_ave     = CSP1_ave[:frame_length]
-        # 最大で割り算
-        CSP1_ave     = CSP1_ave/np.max(CSP1_ave)
+        # 不要な後半部を除去
+        csp1_time_domain     = csp1_time_domain[:frame_length]
+        # 最大値で正規化
+        csp1_time_domain     = csp1_time_domain / np.max(csp1_time_domain)
 
         # --ゼロ埋め込み周波数の決定----------
         # 振幅(周波数?)の大きい順にインデックスを取得
@@ -246,22 +261,22 @@ for num, amp in enumerate(embedding_amplitudes):
         # 3rd: 振幅変調と位相変調
         # ------------------------------
         # Y1 に対して振幅変調
-        Y1emb[embedded_freq, :] = amp * Y1emb[embedded_freq, :]        # embedded_freqの周波数ビンにamp倍
+        y1emb[embedded_freq, :] = amp * y1emb[embedded_freq, :]        # embedded_freqの周波数ビンにamp倍
         # Y1 に対して位相変調
         theta = embedding_phase/180 * np.pi
-        Y1emb[embedded_freq, :] = Y1emb[embedded_freq, :] * np.exp(1j*theta)
-        # print(f'Y1emb shape: {Y1emb.shape}')
+        y1emb[embedded_freq, :] = y1emb[embedded_freq, :] * np.exp(1j*theta)
+        # print(f'Y1emb shape: {y1emb.shape}')
 
         # -音質検査用-----
-        Y1zero[embedded_freq, frame_start_index:frame_start_index+3] = amp * Y1zero[embedded_freq, frame_start_index:frame_start_index+3]
+        y1zero[embedded_freq, frame_start_index:frame_start_index+3] = amp * y1zero[embedded_freq, frame_start_index:frame_start_index+3]
 
         # ------------------------------
         # 4th: CSP2を求める
         # ------------------------------
         # 埋め込み信号を利用している(Y1emb)
-        Yspec   = Y1emb + Y2spec
+        yspec   = y1emb + y2spec
         # 相互相関(周波数領域)
-        XY2         = Yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(Xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
+        XY2         = yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
         # 相互相関の絶対値(周波数領域)
         XY2abs       = np.abs(XY2)
         # 分母がほぼ0になるのを防止
@@ -362,24 +377,24 @@ for num, amp in enumerate(embedding_amplitudes):
         # ------------------------------
         # 9th: 計算結果を保存する
         # ------------------------------
-        csp1_values.append(CSP1_ave)
-        csp2_values.append(CSP2_ave)
-        embedded_freq_csp1_values.append(CSP1_emb_ave)
-        embedded_freq_csp2_values.append(CSP2_emb_ave)
-        csp_difference_values.append(CSP_sub)
-        weighted_csp_values.append(CSP_wt_sub)
-        CSP_emb_sub_data.append(CSP_emb_sub)
-        CSP_emb_wtd_data.append(CSP_emb_wt)
+        csp1_values.append(CSP1_ave)                            # CSP1
+        csp2_values.append(CSP2_ave)                            # CSP2
+        embedded_freq_csp1_values.append(CSP1_emb_ave)          # 特定の周波数成分だけを抽出したCSP1
+        embedded_freq_csp2_values.append(CSP2_emb_ave)          # 特定の周波数成分だけを抽出したCSP2
+        csp_difference_values.append(CSP_sub)                   # 差分CSP
+        weighted_csp_difference_values.append(CSP_wt_sub)       # 重み付け差分CSP
+        embedded_freq_csp_difference.append(CSP_emb_sub)        # 特定の周波数成分だけを抽出した差分CSP
+        embedded_freq_weighted_csp_values.append(CSP_emb_wt)    # 特定の周波数成分だけを抽出した重み付け差分CSP
 
     # numpyに変更
-    csp1_values                 = np.array(csp1_values)                 # CSP1
-    csp2_values                 = np.array(csp2_values)                 # CSP2
-    embedded_freq_csp1_values   = np.array(embedded_freq_csp1_values)   # CSP1(埋込周波数のみ)
-    embedded_freq_csp2_values   = np.array(embedded_freq_csp2_values)   # CSP2(埋込周波数のみ)
-    csp_difference_values       = np.array(csp_difference_values)       # 差分CSP
-    weighted_csp_values         = np.array(weighted_csp_values)         # 重み付き差分CSP
-    CSP_emb_sub_data            = np.array(CSP_emb_sub_data)            # 差分CSP
-    CSP_emb_wtd_data            = np.array(CSP_emb_wtd_data)            # 重み付き差分CSP
+    csp1_values                         = np.array(csp1_values)
+    csp2_values                         = np.array(csp2_values)
+    embedded_freq_csp1_values           = np.array(embedded_freq_csp1_values)
+    embedded_freq_csp2_values           = np.array(embedded_freq_csp2_values)
+    csp_difference_values               = np.array(csp_difference_values)
+    weighted_csp_difference_values      = np.array(weighted_csp_difference_values)
+    embedded_freq_csp_difference        = np.array(embedded_freq_csp_difference)
+    embedded_freq_weighted_csp_values   = np.array(embedded_freq_weighted_csp_values)
 
     # 推定誤差を算出
     distance_speaker1 = [f'{impulse_peak_positions[0]/sampling_rate*speed_of_sound:.2f},{1000*impulse_peak_positions[0]/sampling_rate:.2f}']
@@ -402,10 +417,10 @@ for num, amp in enumerate(embedding_amplitudes):
     # 10th: 遅延量推定精度を求める
     # ------------------------------
 
-    # csp1_valuesとCSP_emb_wtd_dataに基づいて, 遅延量(delay)を推定し,
+    # csp1_valuesとembedded_freq_weighted_csp_valuesに基づいて, 遅延量(delay)を推定し,
     # その結果をリストDelayに格納する.
     Delay = []
-    for csp1, csp2 in zip(csp1_values, CSP_emb_wtd_data):
+    for csp1, csp2 in zip(csp1_values, embedded_freq_weighted_csp_values):
         # 遅延量の推定
         csp1_imp = []
         csp1_peaks, _ = find_peaks(csp1, height=0.5)
@@ -439,7 +454,7 @@ for num, amp in enumerate(embedding_amplitudes):
     delay_time_errors.append(mean_delay_error_ms)
 
     PR_data = []
-    for csp2, delay in zip(CSP_emb_wtd_data, Delay):
+    for csp2, delay in zip(embedded_freq_weighted_csp_values, Delay):
         # まずcsp1が第１スピーカと第２スピーカどちらの遅延を検知したか判定
         # 結果をpos_truthに保存.
         if np.abs(delay[0] - adjusted_impulse_peaks[0]) < np.abs(delay[0] - adjusted_impulse_peaks[1]):
@@ -475,9 +490,9 @@ for num, amp in enumerate(embedding_amplitudes):
     # 11th: 音質評価
     # ------------------------------
     # 時間波形
-    frames  = min([Y1spec.shape[1], Y1zero.shape[1]])
-    y1_orig = istft(Y1spec[:,:frames], hop_length=hop_length)
-    y1_emb  = istft(Y1zero[:,:frames], hop_length=hop_length)
+    frames  = min([y1spec.shape[1], y1zero.shape[1]])
+    y1_orig = istft(y1spec[:,:frames], hop_length=hop_length)
+    y1_emb  = istft(y1zero[:,:frames], hop_length=hop_length)
 
     # PESQ
     y1_orig_ds = resample(y1_orig[:sampling_rate*5], orig_sr=sampling_rate, target_sr=sampling_rate)
