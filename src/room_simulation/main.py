@@ -11,17 +11,33 @@ import convert
 
 # --使用音源, スピーカーの設定----------
 # 使用する音源の選択(1 or 2)
-music_type = 2
+music_type = 1
 # スピーカーの数
 num_spk = 2
 # 各スピーカーに音源を割り当てる
 channels = []
 for spk in range(num_spk):
-    fs, channel = wavfile.read(f'./../../sound/original/music{music_type}_mono.wav')
+    fs, channel = wavfile.read(f'./../../sound/original/long_music{music_type}_mono.wav')
     channels.append(channel)
 
 # デバッグ用
 # display.sr_and_spk(fs, channels)
+
+# --オリジナル音源をトリミングする----------
+# サンプリング周波数 [Hz]
+fs = 44100
+# スタート位置 [sample]
+st = 1000
+# 秒数 [s]
+length = 10
+# 合計サンプル長 [sample]
+L = fs * length
+# エンド位置 [sample]
+ed = st + L
+
+target_file = channels[0][st:ed]
+sf.write(f'./../../sound/original/music{music_type}_mono.wav', target_file, fs)
+
 
 # --部屋の設定----------
 # 残響時間[s]
@@ -82,13 +98,22 @@ for i, ir_ in enumerate(room.rir):
 # --音源を用いたシミュレーション----------
 separate_recordings = room.simulate(return_premix=True)
 
-# 単体音声の保存
+# --単体音声の保存----------
+# long版
 for i, sound in enumerate(separate_recordings):
     recorded        = sound[0, :]
+    sf.write(f'./../../sound/room_simulation/long_music{music_type}_room_ch{i+1}_{fs}Hz.wav', recorded / np.max(recorded) * 0.95, fs)
+# short版(distance_estimation用)
+for i, sound in enumerate(separate_recordings):
+    recorded        = sound[0, st:ed]
     sf.write(f'./../../sound/room_simulation/music{music_type}_room_ch{i+1}_{fs}Hz.wav', recorded / np.max(recorded) * 0.95, fs)
 
-# 混合音声の保存
+# --混合音声の保存----------
+# long版
 mixed_recorded  = np.sum(separate_recordings, axis=0)[0,:]
+sf.write(f'./../../sound/room_simulation/long_music{music_type}_room_mix_{fs}Hz.wav', mixed_recorded / np.max(mixed_recorded) * 0.95, fs)
+# short版(distance_estimation用)
+mixed_recorded  = np.sum(separate_recordings, axis=0)[0,st:ed]
 sf.write(f'./../../sound/room_simulation/music{music_type}_room_mix_{fs}Hz.wav', mixed_recorded / np.max(mixed_recorded) * 0.95, fs)
 
 # --サンプリングレートの変更----------
