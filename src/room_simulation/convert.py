@@ -1,7 +1,5 @@
-'''----------
-convert.py
-Created by FreReRiku on 2024/12/29
-----------'''
+# convert.py
+# Created by FreReRiku on 2024/12/29
 
 import librosa
 import soundfile as sf
