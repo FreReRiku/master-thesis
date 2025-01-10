@@ -18,7 +18,7 @@ from scipy.fft import irfft
 # ------------------------------
 
 # 音源の選択 (1 or 2)
-music_type = 2
+music_type = 1
 # サンプリング周波数 [Hz]
 fs  = 44100
 # 音速 [m/s]
@@ -115,24 +115,20 @@ for num, amp in enumerate(emb_amp):
     file_name_origin    = f'./../../sound/original/music{music_type}_mono.wav'
     file_name_spk1 = f'./../../sound/room_simulation/music{music_type}_room_ch1_{fs}Hz.wav'
     file_name_spk2 = f'./../../sound/room_simulation/music{music_type}_room_ch2_{fs}Hz.wav'
+    file_name_spk_long = f'./../../sound/room_simulation/long_music{music_type}_room_ch1_{fs}Hz.wav'
     # 読み込み
     impulse1, _ = sf.read(file_name_impulse1)
     impulse2, _ = sf.read(file_name_impulse2)
     x, _        = sf.read(file_name_origin)
     y1, _       = sf.read(file_name_spk1)
     y2, _       = sf.read(file_name_spk2)
-
-
-    # 音声のトリミング
-    x_0       = x[st:ed]          # スピーカ出力音声のトリミング
-    y1_0      = y1[st:ed]         # マイク入力音声1のトリミング
-    y2_0      = y2[st:ed]         # マイク入力音声1のトリミング
+    ylong, _    = sf.read(file_name_spk_long)
 
     # スペクトログラム
-    Xspec   = stft(x_0, n_fft=2*N, hop_length=S, win_length=N, center=False)
-    Y1spec  = stft(y1_0, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
-    Y2spec  = stft(y2_0, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
-    Y1zero  = stft(y1, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
+    Xspec   = stft(x, n_fft=2*N, hop_length=S, win_length=N, center=False)
+    Y1spec  = stft(y1, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
+    Y2spec  = stft(y2, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
+    Y1zero  = stft(ylong, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
 
     # デバッグ用: 各スペクトログラムのサイズを調べる。
     # print("Xspecのサイズ:", Xspec.shape)
@@ -199,10 +195,10 @@ for num, amp in enumerate(emb_amp):
     print(pos_imp_sub_d)
 
     # 遅延時間を考慮した音声のトリミング
-    x       = x[st-d:ed-d]
+    adjusted_x       = x[:]
 
     # Xspecを更新し、遅延時間を考慮したスペクトログラムを生成
-    Xspec   = stft(x, n_fft=2*N, hop_length=S, win_length=N, center=False)
+    Xspec   = stft(adjusted_x, n_fft=2*N, hop_length=S, win_length=N, center=False)
 
     for k in pos_st_frame:
 
