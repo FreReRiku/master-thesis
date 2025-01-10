@@ -113,6 +113,7 @@ for num, amp in enumerate(emb_amp):
     file_name_impulse1  = f'./../../sound/room_simulation/impulse_signal_ch1_{fs}Hz.wav'
     file_name_impulse2  = f'./../../sound/room_simulation/impulse_signal_ch2_{fs}Hz.wav'
     file_name_origin    = f'./../../sound/original/music{music_type}_mono.wav'
+    file_name_origin_long    = f'./../../sound/original/long_music{music_type}_mono.wav'
     file_name_spk1 = f'./../../sound/room_simulation/music{music_type}_room_ch1_{fs}Hz.wav'
     file_name_spk2 = f'./../../sound/room_simulation/music{music_type}_room_ch2_{fs}Hz.wav'
     file_name_spk_long = f'./../../sound/room_simulation/long_music{music_type}_room_ch1_{fs}Hz.wav'
@@ -120,6 +121,7 @@ for num, amp in enumerate(emb_amp):
     impulse1, _ = sf.read(file_name_impulse1)
     impulse2, _ = sf.read(file_name_impulse2)
     x, _        = sf.read(file_name_origin)
+    xlong, _        = sf.read(file_name_origin_long)
     y1, _       = sf.read(file_name_spk1)
     y2, _       = sf.read(file_name_spk2)
     ylong, _    = sf.read(file_name_spk_long)
@@ -130,18 +132,12 @@ for num, amp in enumerate(emb_amp):
     Y2spec  = stft(y2, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
     Y1zero  = stft(ylong, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
 
-    # デバッグ用: 各スペクトログラムのサイズを調べる。
-    # print("Xspecのサイズ:", Xspec.shape)
-    # print("Y1specのサイズ:", Y1spec.shape)
-    # print("Y2specのサイズ:", Y2spec.shape)
-    # print("Y1zeroのサイズ:", Y1zero.shape)
-
     # 保存用の配列
     CSP0_data, CSP_data, CSP1_data, CSP2_data, CSP_emb_data, CSP_sub_data, CSP_wtd_data, CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
 
 
     # ------------------------------
-    # 1st: CSP0, 及びTop Position d_0 の推定
+    # 1st: CSP0, 及び 遅延距離d_0 の推定
     # ------------------------------
     for k in pos_st_frame:
 
@@ -191,14 +187,14 @@ for num, amp in enumerate(emb_amp):
     pos_imp = np.array(pos_imp)
     pos_imp_sub_d = np.array(pos_imp_sub_d)
 
-    print(pos_imp)
-    print(pos_imp_sub_d)
+    # print(pos_imp)
+    # print(pos_imp_sub_d)
 
     # 遅延時間を考慮した音声のトリミング
-    adjusted_x       = x[:]
+    adjusted_x       = xlong[st-d:ed-d]
 
     # Xspecを更新し、遅延時間を考慮したスペクトログラムを生成
-    Xspec   = stft(adjusted_x, n_fft=2*N, hop_length=S, win_length=N, center=False)
+    Xspec_adjusted   = stft(adjusted_x, n_fft=2*N, hop_length=S, win_length=N, center=False)
 
     for k in pos_st_frame:
 
@@ -212,7 +208,7 @@ for num, amp in enumerate(emb_amp):
         # 2nd: CSP1を求める
         # ------------------------------
         # 相互相関(周波数領域)
-        XY1          = Yspec[:, k:k+K] * np.conj(Xspec[:, k:k+K])
+        XY1          = Yspec[:, k:k+K] * np.conj(Xspec_adjusted[:, k:k+K])
         # 相互相関の絶対値(周波数領域)
         XY1abs       = np.abs(XY1)
         # 分母がほぼ0になるのを防止
