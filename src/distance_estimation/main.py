@@ -18,7 +18,7 @@ from scipy.fft import irfft
 # ------------------------------
 
 # 音源の選択 (1 or 2)
-music_type = 1
+music_type = 2
 # サンプリング周波数 [Hz]
 fs  = 44100
 # 音速 [m/s]
@@ -45,7 +45,8 @@ K = 40
 # 埋め込み周波数のビン数
 D   = np.floor(N*0.1).astype(int)
 # スタートのフレーム位置(ここからKフレーム用いる)
-pos_st_frame = np.arange(0, Tn*3, 3)
+frame_count = round(fs*3/16000)     # フレームカウント
+pos_st_frame = np.arange(0, Tn*frame_count, frame_count)
 # CSPの最大値に対するノイズと判定する振幅比のしきい値(Threshold)
 TH  = 0.2
 
@@ -132,11 +133,13 @@ for num, amp in enumerate(emb_amp):
     Y1spec  = stft(y1_0, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
     Y2spec  = stft(y2_0, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
     Y1zero  = stft(y1, n_fft=2*N, hop_length=S, win_length=2*N, center=False)
+
     # デバッグ用: 各スペクトログラムのサイズを調べる。
-    print("Xspecのサイズ:", Xspec.shape)
-    print("Y1specのサイズ:", Y1spec.shape)
-    print("Y2specのサイズ:", Y2spec.shape)
-    print("Y1zeroのサイズ:", Y1zero.shape)
+    # print("Xspecのサイズ:", Xspec.shape)
+    # print("Y1specのサイズ:", Y1spec.shape)
+    # print("Y2specのサイズ:", Y2spec.shape)
+    # print("Y1zeroのサイズ:", Y1zero.shape)
+
     # 保存用の配列
     CSP0_data, CSP_data, CSP1_data, CSP2_data, CSP_emb_data, CSP_sub_data, CSP_wtd_data, CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
 
@@ -173,8 +176,7 @@ for num, amp in enumerate(emb_amp):
         CSP0_data.append(CSP0_ave)
 
         # -dを推定-----
-        d = (np.argmax(CSP0_data)-25)
-
+        d = (np.argmax(CSP0_data)-67) # この67という値を変えるとpeak_ratioの結果に影響が出る. 最適な値を動的に導出できるようにしたい
 
     # --インパルスのピーク位置の推定----------
     # インパルス応答ピークの記録用
@@ -184,13 +186,17 @@ for num, amp in enumerate(emb_amp):
 
     # find_peaks関数を用いて、ピークを推定・記録
     for impulse_ in [impulse1, impulse2]:
-        pos_peaks, _ = find_peaks(impulse_, height=0.2)
+        # scipy.signal.find_peaks関数を使って, impulse_からピークを検出
+        pos_peaks, _ = find_peaks(impulse_, height=0.6)     # height: ピーク位置の閾値
         pos_imp.append(pos_peaks[0])
         pos_imp_sub_d.append(pos_peaks[0]-d)
 
     # numpyに変換
     pos_imp = np.array(pos_imp)
     pos_imp_sub_d = np.array(pos_imp_sub_d)
+
+    print(pos_imp)
+    print(pos_imp_sub_d)
 
     # 遅延時間を考慮した音声のトリミング
     x       = x[st-d:ed-d]
@@ -234,9 +240,12 @@ for num, amp in enumerate(emb_amp):
         # CSPの最大D個の周波数
         embedded_freq   = pos[:D]
 
-        # --CSP1(埋込周波数のみ)を求める----------
+        # --CSP1(埋込周波数のみ)を求める. CSP1の特定の周波数成分だけを抽出し, 時間領域に変換----------
+        # CSP1と同じ形状の配列を作成し, すべての値を0に初期化
         CSP1_emb = np.zeros_like(CSP1)
+        # embedded_freqに指定された周波数成分だけをCSP1_embにコピーし, それ以外を0にする
         CSP1_emb[embedded_freq]     = CSP1[embedded_freq]
+        # 特定の周波数成分だけを含む信号を時間領域に変換する
         CSP1_emb_ave     = irfft(CSP1_emb, axis=0)
 
         # -CSP1の整形-----
@@ -262,7 +271,7 @@ for num, amp in enumerate(emb_amp):
         # 4th: CSP2を求める
         # ------------------------------
         # 埋め込み信号を利用している(Y1emb)
-        Yspec   = Y1emb + Y2spec        
+        Yspec   = Y1emb + Y2spec
         # 相互相関(周波数領域)
         XY2         = Yspec[:, k+K:k+2*K] * np.conj(Xspec[:, k+K:k+2*K])
         # 相互相関の絶対値(周波数領域)
@@ -282,13 +291,18 @@ for num, amp in enumerate(emb_amp):
         # 最大で割り算
         CSP2_ave     = CSP2_ave/np.max(CSP2_ave)
 
-        # --CSP2(埋込周波数のみ)を求める----------
+        # --CSP2(埋込周波数のみ)を求める. CSP2の特定の周波数成分だけを抽出し, 時間領域に変換----------
+        # CSP2と同じ形状の配列を作成し, すべての値を0に初期化
         CSP2_emb = np.zeros_like(CSP2)
+        # embedded_freqに指定された周波数成分だけをCSP2_embにコピーし, それ以外を0にする
         CSP2_emb[embedded_freq]     = CSP2[embedded_freq]
+        # 特定の周波数成分だけを含む信号を時間領域に変換する
         CSP2_emb_ave = irfft(CSP2_emb, axis=0)
 
         # -CSP2(埋込周波数のみ)の整形-----
+        # いらない後半部を除去
         CSP2_emb_ave = CSP2_emb_ave[:N]
+        # 最大で割り算
         CSP2_emb_ave = CSP2_emb_ave / np.max(CSP2_emb_ave)
 
         # ------------------------------
@@ -369,7 +383,6 @@ for num, amp in enumerate(emb_amp):
         CSP_emb_sub_data.append(CSP_emb_sub)
         CSP_emb_wtd_data.append(CSP_emb_wt)
 
-
     # numpyに変更
     CSP_data     = np.array(CSP_data)         # CSP1
     CSP_emb_data = np.array(CSP_emb_data)     # CSP2
@@ -380,6 +393,7 @@ for num, amp in enumerate(emb_amp):
     CSP_emb_sub_data = np.array(CSP_emb_sub_data)     # 差分CSP
     CSP_emb_wtd_data = np.array(CSP_emb_wtd_data)     # 重み付き差分CSP
 
+    # 推定誤差を算出
     distance_spk1 = [f'{pos_imp[0]/fs*c:.2f},{1000*pos_imp[0]/fs:.2f}']
     distance_spk2 = [f'{pos_imp[1]/fs*c:.2f},{1000*pos_imp[1]/fs:.2f}']
     with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk1.csv', mode='a', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
@@ -399,16 +413,21 @@ for num, amp in enumerate(emb_amp):
     # ------------------------------
     # 10th: 遅延量推定精度を求める
     # ------------------------------
+
+    # CSP1_dataとCSP_emb_wtd_dataに基づいて, 遅延量(delay)を推定し,
+    # その結果をリストDelayに格納する.
     Delay = []
     for csp1, csp2 in zip(CSP1_data, CSP_emb_wtd_data):
         # 遅延量の推定
         csp1_imp = []
         csp1_peaks, _ = find_peaks(csp1, height=0.5)
+        # 最初に検出されたピークの位置(csp1_peaks[0])をcsp1_impに追加
         csp1_imp.append(csp1_peaks[0])
-        #delay1 = np.argmax(csp1)
+        # csp1における最初のピーク位置(csp1_imp[0])をdelay1として保存する.
         delay1 = csp1_imp[0]
+        # csp2の最大値を持つインデックスを取得し, それをdelay2として保存する.
         delay2 = np.argmax(csp2)
-        # 遅延量をバッファリング
+        # delay1(csp1のピーク位置)とdelay2(csp2の最大値位置)を配列として格納する.
         delay = np.array([delay1, delay2])
         Delay.append(delay)
 
@@ -417,33 +436,46 @@ for num, amp in enumerate(emb_amp):
     # 遅延推定誤差 (平均絶対誤差)
     error = []
     for delay in Delay:
+        # delay(推定遅延量)とpos_imp_sub_d(基準値)の差の絶対値を計算し, それらを足し合わせる.
         tmp1 = np.sum(np.abs(delay - pos_imp_sub_d))
+        # 遅延ペア([delay1, delay2])の順序が逆である場合の誤差を計算.
+        # 遅延ペアの順序が異なっている場合の比較を考慮している.
         tmp2 = np.sum(np.abs(np.flip(delay) - pos_imp_sub_d))
+        # tmp1, tmp2のうち, 小さい方の値(最小誤差)を選択して, リストerrorに追加.
         error.append(np.min([tmp1, tmp2]))
+    # リストerrorに格納されたすべての遅延誤差の平均を計算し,
+    # 全体としての平均的な遅延誤差を取得.
     error = np.mean(np.array(error))
+    # サンプル数単位から時間単位へ変換
     delay_time_error = error / fs
-    delay_time_error = 1000 * delay_time_error #[ms]に変換
-
+    # [ms]に変換
+    delay_time_error = 1000 * delay_time_error
     dte_data.append(delay_time_error)
 
     PR_data = []
     for csp2, delay in zip(CSP_emb_wtd_data, Delay):
         # まずcsp1が第１スピーカと第２スピーカどちらの遅延を検知したか判定
+        # 結果をpos_truthに保存.
         if np.abs(delay[0] - pos_imp_sub_d[0]) < np.abs(delay[0] - pos_imp_sub_d[1]):
             pos_truth = pos_imp_sub_d[1]  # csp2はpos_imp[1]を推定したと判定
         else:
             pos_truth = pos_imp_sub_d[0]  # csp2はpos_imp[0]を推定したと判定
 
-        # 真の遅延 pos_truth におけるピークの大きさ
+        # 真の遅延 pos_truth におけるピーク振幅を取得.
         csp2_peak = csp2[pos_truth]
 
         # それ以外での最大ピーク
+        # csp2のコピーを作成する
         tmp = np.copy(csp2)
+        # 真の遅延位置(pos_truth)を0に設定
         tmp[pos_truth] = 0
+        # 他のピークの中で最大値を探す(np.max(tmp)).
         peak_2nd = np.max(tmp)
 
+        # 真のピークが他のピークよりどれだけ際立っているかを数値化.
         PR_data.append(csp2_peak / (np.max([peak_2nd, 10 ** (-8)])))
 
+    # numpy配列に変換
     PR_data = np.array(PR_data)
 
     Peak_Ratio = [f'{np.mean(PR_data):.2f},{np.min(PR_data):.2f},{(PR_data[PR_data >= 1].size / PR_data.size)*100:2.0f}']
@@ -481,7 +513,7 @@ for num, amp in enumerate(emb_amp):
     sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, fs)
 
     # 確認用の表示
-    print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
+    # print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
 dte_data = np.array(dte_data)
 pesq_data = np.array(pesq_data)
