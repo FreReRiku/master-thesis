@@ -11,7 +11,7 @@ import convert
 
 # --使用音源, スピーカーの設定----------
 # 使用する音源の選択(1 or 2)
-music_type = 1
+music_type = 2
 # スピーカーの数
 num_spk = 2
 # 各スピーカーに音源を割り当てる
@@ -102,8 +102,8 @@ sound_files = [
 ]
 
 # 変更したいサンプリングレート
-target_sr = 16000
-
+# target_sr = 16000
+# 
 # サンプリングレートの変更
-for sound_file in sound_files:
-    convert.sampling_rate(input_file=sound_file, orig_sr=fs, target_sr=target_sr)
+# for sound_file in sound_files:
+#     convert.sampling_rate(input_file=sound_file, orig_sr=fs, target_sr=target_sr)
