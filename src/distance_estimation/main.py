@@ -16,54 +16,52 @@ from scipy.fft import irfft
 # ------------------------------
 
 # 音源の選択 (1 or 2)
-music_type = 1
+music_type      = 1
 # サンプリング周波数 [Hz]
-sampling_rate  = 44100
+sampling_rate   = 44100
 # 音速 [m/s]
-speed_of_sound   = 340.29
-# サンプル長 (sampling_rate * s)
+speed_of_sound  = 340.29
+# サンプル長 [sample]
 signal_length_samples   = sampling_rate * 10
-# フレーム長
-frame_length   = 1024
-# ホップ長
-hop_length   = 512
-# 時間軸
-t = np.arange(frame_length)/sampling_rate
+# フレーム長 [sample]
+frame_length    = 1024
+# ホップ長 [sample]
+hop_length      = 512
 
-# スタートポイント
-start_sample = 1000
-# エンドポイント
-end_sample = start_sample + signal_length_samples
+# スタートポイント [sample]
+start_sample    = 1000
+# エンドポイント   [sample]
+end_sample      = start_sample + signal_length_samples
 
-# トライアル回数
-Tn = 100
+# トライアル回数 [times]
+num_trials      = 100
 
-# 連続して埋め込むフレーム数
-K = 40
-# 埋め込み周波数のビン数
-embedding_frequency_bins   = np.floor(frame_length*0.1).astype(int)
+# 連続して埋め込むフレーム数 [sample]
+num_embedding_frames        = 40
+# 埋め込み周波数のビン数 [sample]
+embedding_frequency_bins    = np.floor(frame_length*0.1).astype(int)
 # スタートのフレーム位置(ここからKフレーム用いる)
 frame_count = round(sampling_rate*3/16000)     # フレームカウント
-pos_st_frame = np.arange(0, Tn*frame_count, frame_count)
-# CSPの最大値に対するノイズと判定する振幅比のしきい値(Threshold)
+pos_st_frame = np.arange(0, num_trials*frame_count, frame_count)
+# CSPの最大値に対するノイズと判定する振幅比のしきい値(const)
 threshold_ratio  = 0.2
 
 # -埋め込む振幅の設定-----
-# ループ回数
+# ループ回数 [times]
 loop_times = 25
 # 埋め込む振幅
 embedding_amplitudes    = np.linspace(0, 1, loop_times)
 # -埋め込む位相の設定-----
 embedding_phase  = 0
 
-# ゼロ除算回避定数
+# ゼロ除算回避定数 (const)
 epsilon = 1e-20
 
 # -データ格納用のリストの初期化-----
 # 遅延推定誤差記録用
-dte_data = []
+delay_time_errors = []
 # 音質評価記録用
-pesq_data = []
+pesq_scores = []
 # スピーカー1とマイク間の距離・到来時間の記録用
 distance_speaker1 = []
 # スピーカー2とマイク間の距離・到来時間の記録用
@@ -78,7 +76,7 @@ with open(f'./../../data/distance_estimation/music{music_type}_mono/init_informa
     writer = csv.writer(file_init_information)
     writer.writerows( [
     [f'{frame_length+1}binのうちゼロを埋め込む周波数ビンの数[bin]','1回の検知で埋め込むフレーム数[フレーム]','試行回数[回]'],
-    [f'{embedding_frequency_bins}',f'{K}',f'{len(pos_st_frame)}']
+    [f'{embedding_frequency_bins}',f'{num_embedding_frames}',f'{len(pos_st_frame)}']
 ])
 
 # スピーカー1におけるマイク・スピーカー間距離、到来時間の出力
@@ -131,20 +129,20 @@ for num, amp in enumerate(embedding_amplitudes):
     Y1zero  = stft(ylong, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
 
     # 保存用の配列
-    CSP0_data, CSP_data, CSP1_data, CSP2_data, CSP_emb_data, CSP_sub_data, CSP_wtd_data, CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
+    csp0_values, csp1_values, csp2_values, embedded_freq_csp1_values, embedded_freq_csp2_values,  csp_difference_values, weighted_csp_values, CSP_emb_sub_data, CSP_emb_wtd_data = [], [], [], [], [], [], [], [], []
 
 
     # ------------------------------
     # 1st: CSP0, 及び 遅延距離d_0 の推定
     # ------------------------------
-    for k in pos_st_frame:
+    for frame_start_index in pos_st_frame:
 
         # マイク入力音声のスペクトログラム(スペクトログラムの合成)
         Yspec = Y1spec + Y2spec
 
         # --CSP0を求める(GCC-PHAT法)----------
         # 相互相関(周波数領域)
-        XY0 = Yspec[:, k:k + K] * np.conj(Xspec[:, k:k + K])
+        XY0 = Yspec[:, frame_start_index:frame_start_index + num_embedding_frames] * np.conj(Xspec[:, frame_start_index:frame_start_index + num_embedding_frames])
         # 相互相関の絶対値(周波数領域)
         XY0abs = np.abs(XY0)
         # 分母がほぼ0になるのを防止
@@ -163,30 +161,30 @@ for num, amp in enumerate(embedding_amplitudes):
         CSP0_ave = CSP0_ave / np.max(CSP0_ave)
 
         # -CSP0の保存-----
-        CSP0_data.append(CSP0_ave)
+        csp0_values.append(CSP0_ave)
 
         # -dを推定-----
-        estimated_delay = (np.argmax(CSP0_data)-67) # この67という値を変えるとpeak_ratioの結果に影響が出る. 最適な値を動的に導出できるようにしたい
+        estimated_delay = (np.argmax(csp0_values)-67) # この67という値を変えるとpeak_ratioの結果に影響が出る. 最適な値を動的に導出できるようにしたい
 
     # --インパルスのピーク位置の推定----------
     # インパルス応答ピークの記録用
-    pos_imp = []
+    impulse_peak_positions = []
     # 遅延時間を除いたインパルス応答ピークの記録用
-    pos_imp_sub_d = []
+    adjusted_impulse_peaks = []
 
     # find_peaks関数を用いて、ピークを推定・記録
     for impulse_ in [impulse1, impulse2]:
         # scipy.signal.find_peaks関数を使って, impulse_からピークを検出
         pos_peaks, _ = find_peaks(impulse_, height=0.6)     # height: ピーク位置の閾値
-        pos_imp.append(pos_peaks[0])
-        pos_imp_sub_d.append(pos_peaks[0]-estimated_delay)
+        impulse_peak_positions.append(pos_peaks[0])
+        adjusted_impulse_peaks.append(pos_peaks[0]-estimated_delay)
 
     # numpyに変換
-    pos_imp = np.array(pos_imp)
-    pos_imp_sub_d = np.array(pos_imp_sub_d)
+    impulse_peak_positions = np.array(impulse_peak_positions)
+    adjusted_impulse_peaks = np.array(adjusted_impulse_peaks)
 
-    # print(pos_imp)
-    # print(pos_imp_sub_d)
+    # print(impulse_peak_positions)
+    # print(adjusted_impulse_peaks)
 
     # 遅延時間を考慮した音声のトリミング
     adjusted_x       = xlong[start_sample-estimated_delay:end_sample-estimated_delay]
@@ -194,7 +192,7 @@ for num, amp in enumerate(embedding_amplitudes):
     # Xspecを更新し、遅延時間を考慮したスペクトログラムを生成
     Xspec_adjusted   = stft(adjusted_x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
 
-    for k in pos_st_frame:
+    for frame_start_index in pos_st_frame:
 
         # 埋め込み用の配列
         Y1emb   = np.copy(Y1spec)
@@ -206,7 +204,7 @@ for num, amp in enumerate(embedding_amplitudes):
         # 2nd: CSP1を求める
         # ------------------------------
         # 相互相関(周波数領域)
-        XY1          = Yspec[:, k:k+K] * np.conj(Xspec_adjusted[:, k:k+K])
+        XY1          = Yspec[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(Xspec_adjusted[:, frame_start_index:frame_start_index+num_embedding_frames])
         # 相互相関の絶対値(周波数領域)
         XY1abs       = np.abs(XY1)
         # 分母がほぼ0になるのを防止
@@ -255,7 +253,7 @@ for num, amp in enumerate(embedding_amplitudes):
         # print(f'Y1emb shape: {Y1emb.shape}')
 
         # -音質検査用-----
-        Y1zero[embedded_freq, k:k+3] = amp * Y1zero[embedded_freq, k:k+3]
+        Y1zero[embedded_freq, frame_start_index:frame_start_index+3] = amp * Y1zero[embedded_freq, frame_start_index:frame_start_index+3]
 
         # ------------------------------
         # 4th: CSP2を求める
@@ -263,7 +261,7 @@ for num, amp in enumerate(embedding_amplitudes):
         # 埋め込み信号を利用している(Y1emb)
         Yspec   = Y1emb + Y2spec
         # 相互相関(周波数領域)
-        XY2         = Yspec[:, k+K:k+2*K] * np.conj(Xspec[:, k+K:k+2*K])
+        XY2         = Yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(Xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
         # 相互相関の絶対値(周波数領域)
         XY2abs       = np.abs(XY2)
         # 分母がほぼ0になるのを防止
@@ -364,28 +362,28 @@ for num, amp in enumerate(embedding_amplitudes):
         # ------------------------------
         # 9th: 計算結果を保存する
         # ------------------------------
-        CSP_data.append(CSP1_ave)
-        CSP_emb_data.append(CSP2_ave)
-        CSP_sub_data.append(CSP_sub)
-        CSP_wtd_data.append(CSP_wt_sub)
-        CSP1_data.append(CSP1_emb_ave)
-        CSP2_data.append(CSP2_emb_ave)
+        csp1_values.append(CSP1_ave)
+        csp2_values.append(CSP2_ave)
+        embedded_freq_csp1_values.append(CSP1_emb_ave)
+        embedded_freq_csp2_values.append(CSP2_emb_ave)
+        csp_difference_values.append(CSP_sub)
+        weighted_csp_values.append(CSP_wt_sub)
         CSP_emb_sub_data.append(CSP_emb_sub)
         CSP_emb_wtd_data.append(CSP_emb_wt)
 
     # numpyに変更
-    CSP_data     = np.array(CSP_data)         # CSP1
-    CSP_emb_data = np.array(CSP_emb_data)     # CSP2
-    CSP_sub_data = np.array(CSP_sub_data)     # 差分CSP
-    CSP_wtd_data = np.array(CSP_wtd_data)     # 重み付き差分CSP
-    CSP1_data     = np.array(CSP1_data)       # CSP1(埋込周波数のみ)
-    CSP2_data     = np.array(CSP2_data)       # CSP2(埋込周波数のみ)
-    CSP_emb_sub_data = np.array(CSP_emb_sub_data)     # 差分CSP
-    CSP_emb_wtd_data = np.array(CSP_emb_wtd_data)     # 重み付き差分CSP
+    csp1_values                 = np.array(csp1_values)                 # CSP1
+    csp2_values                 = np.array(csp2_values)                 # CSP2
+    embedded_freq_csp1_values   = np.array(embedded_freq_csp1_values)   # CSP1(埋込周波数のみ)
+    embedded_freq_csp2_values   = np.array(embedded_freq_csp2_values)   # CSP2(埋込周波数のみ)
+    csp_difference_values       = np.array(csp_difference_values)       # 差分CSP
+    weighted_csp_values         = np.array(weighted_csp_values)         # 重み付き差分CSP
+    CSP_emb_sub_data            = np.array(CSP_emb_sub_data)            # 差分CSP
+    CSP_emb_wtd_data            = np.array(CSP_emb_wtd_data)            # 重み付き差分CSP
 
     # 推定誤差を算出
-    distance_speaker1 = [f'{pos_imp[0]/sampling_rate*speed_of_sound:.2f},{1000*pos_imp[0]/sampling_rate:.2f}']
-    distance_speaker2 = [f'{pos_imp[1]/sampling_rate*speed_of_sound:.2f},{1000*pos_imp[1]/sampling_rate:.2f}']
+    distance_speaker1 = [f'{impulse_peak_positions[0]/sampling_rate*speed_of_sound:.2f},{1000*impulse_peak_positions[0]/sampling_rate:.2f}']
+    distance_speaker2 = [f'{impulse_peak_positions[1]/sampling_rate*speed_of_sound:.2f},{1000*impulse_peak_positions[1]/sampling_rate:.2f}']
     with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk1.csv', mode='a', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
         writer = csv.writer(file_distance_and_arrival_spk1)
 
@@ -404,10 +402,10 @@ for num, amp in enumerate(embedding_amplitudes):
     # 10th: 遅延量推定精度を求める
     # ------------------------------
 
-    # CSP1_dataとCSP_emb_wtd_dataに基づいて, 遅延量(delay)を推定し,
+    # csp1_valuesとCSP_emb_wtd_dataに基づいて, 遅延量(delay)を推定し,
     # その結果をリストDelayに格納する.
     Delay = []
-    for csp1, csp2 in zip(CSP1_data, CSP_emb_wtd_data):
+    for csp1, csp2 in zip(csp1_values, CSP_emb_wtd_data):
         # 遅延量の推定
         csp1_imp = []
         csp1_peaks, _ = find_peaks(csp1, height=0.5)
@@ -426,30 +424,28 @@ for num, amp in enumerate(embedding_amplitudes):
     # 遅延推定誤差 (平均絶対誤差)
     error = []
     for delay in Delay:
-        # delay(推定遅延量)とpos_imp_sub_d(基準値)の差の絶対値を計算し, それらを足し合わせる.
-        tmp1 = np.sum(np.abs(delay - pos_imp_sub_d))
+        # delay(推定遅延量)とadjusted_impulse_peaks(基準値)の差の絶対値を計算し, それらを足し合わせる.
+        tmp1 = np.sum(np.abs(delay - adjusted_impulse_peaks))
         # 遅延ペア([delay1, delay2])の順序が逆である場合の誤差を計算.
         # 遅延ペアの順序が異なっている場合の比較を考慮している.
-        tmp2 = np.sum(np.abs(np.flip(delay) - pos_imp_sub_d))
+        tmp2 = np.sum(np.abs(np.flip(delay) - adjusted_impulse_peaks))
         # tmp1, tmp2のうち, 小さい方の値(最小誤差)を選択して, リストerrorに追加.
         error.append(np.min([tmp1, tmp2]))
     # リストerrorに格納されたすべての遅延誤差の平均を計算し,
     # 全体としての平均的な遅延誤差を取得.
     error = np.mean(np.array(error))
     # サンプル数単位から時間単位へ変換
-    delay_time_error = error / sampling_rate
-    # [ms]に変換
-    delay_time_error = 1000 * delay_time_error
-    dte_data.append(delay_time_error)
+    mean_delay_error_ms = 1000 * (error / sampling_rate)
+    delay_time_errors.append(mean_delay_error_ms)
 
     PR_data = []
     for csp2, delay in zip(CSP_emb_wtd_data, Delay):
         # まずcsp1が第１スピーカと第２スピーカどちらの遅延を検知したか判定
         # 結果をpos_truthに保存.
-        if np.abs(delay[0] - pos_imp_sub_d[0]) < np.abs(delay[0] - pos_imp_sub_d[1]):
-            pos_truth = pos_imp_sub_d[1]  # csp2はpos_imp[1]を推定したと判定
+        if np.abs(delay[0] - adjusted_impulse_peaks[0]) < np.abs(delay[0] - adjusted_impulse_peaks[1]):
+            pos_truth = adjusted_impulse_peaks[1]  # csp2はpos_imp[1]を推定したと判定
         else:
-            pos_truth = pos_imp_sub_d[0]  # csp2はpos_imp[0]を推定したと判定
+            pos_truth = adjusted_impulse_peaks[0]  # csp2はpos_imp[0]を推定したと判定
 
         # 真の遅延 pos_truth におけるピーク振幅を取得.
         csp2_peak = csp2[pos_truth]
@@ -498,15 +494,15 @@ for num, amp in enumerate(embedding_amplitudes):
             dist_m, dist_mm = entry.split(',')
             writer.writerow([dist_m, dist_mm])
 
-    pesq_data.append(score)
+    pesq_scores.append(score)
 
     sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, sampling_rate)
 
     # 確認用の表示
     # print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
-dte_data = np.array(dte_data)
-pesq_data = np.array(pesq_data)
+delay_time_errors = np.array(delay_time_errors)
+pesq_scores = np.array(pesq_scores)
 
 # ------------------------------
 # 12th: 埋込強度の変化に伴う推定誤差結果の変化をプロット
@@ -515,13 +511,13 @@ fig = plt.figure(num='埋込強度変化', figsize=(6, 3))
 plt.subplots_adjust(bottom=0.15)
 ax1 = fig.add_subplot(1, 1, 1)
 
-ax1.plot(embedding_amplitudes, dte_data*speed_of_sound/1000, label='Distance Estimation Error')
+ax1.plot(embedding_amplitudes, delay_time_errors*speed_of_sound/1000, label='Distance Estimation Error')
 ax1.set_xlim([-0.05,1.0])
 ax1.set_xlabel("Embedding Amplitude Gain")
 ax1.set_ylabel("Estimation Distance Error[m]")
 
 ax2 = ax1.twinx()
-ax2.plot(embedding_amplitudes, pesq_data, 'r', label='PESQ')
+ax2.plot(embedding_amplitudes, pesq_scores, 'r', label='PESQ')
 ax2.set_ylim([-0.05, 5.5])
 ax2.set_ylabel("PESQ")
 
