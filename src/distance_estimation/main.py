@@ -121,7 +121,7 @@ for num, amp in enumerate(emb_amp):
     impulse1, _ = sf.read(file_name_impulse1)
     impulse2, _ = sf.read(file_name_impulse2)
     x, _        = sf.read(file_name_origin)
-    xlong, _        = sf.read(file_name_origin_long)
+    xlong, _    = sf.read(file_name_origin_long)
     y1, _       = sf.read(file_name_spk1)
     y2, _       = sf.read(file_name_spk2)
     ylong, _    = sf.read(file_name_spk_long)
