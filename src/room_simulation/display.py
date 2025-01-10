@@ -1,7 +1,5 @@
-'''----------
-display.py
-Created by FreReRiku on 2024/12/29
-----------'''
+# display.py
+# Created by FreReRiku on 2024/12/29
 
 def sr_and_spk(fs, channels):
     '''
