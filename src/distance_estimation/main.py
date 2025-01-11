@@ -100,33 +100,33 @@ with open(f'./../../data/distance_estimation/music{music_type}_mono/pesq.csv', m
     writer.writerow(['PESQ','SNR[dB]'])
 
 
-for num, amp in enumerate(embedding_amplitudes):
+for num, amplitude_gain in enumerate(embedding_amplitudes):
     # ------------------------------
     # オーディオファイルの読み込み
     # ------------------------------
 
     # ファイルパスの指定
-    file_name_impulse1      = f'./../../sound/room_simulation/impulse_signal_ch1_{sampling_rate}Hz.wav'
-    file_name_impulse2      = f'./../../sound/room_simulation/impulse_signal_ch2_{sampling_rate}Hz.wav'
-    file_name_origin        = f'./../../sound/original/music{music_type}_mono.wav'
-    file_name_origin_long   = f'./../../sound/original/long_music{music_type}_mono.wav'
-    file_name_spk1          = f'./../../sound/room_simulation/music{music_type}_room_ch1_{sampling_rate}Hz.wav'
-    file_name_spk2          = f'./../../sound/room_simulation/music{music_type}_room_ch2_{sampling_rate}Hz.wav'
-    file_name_spk_long      = f'./../../sound/room_simulation/long_music{music_type}_room_ch1_{sampling_rate}Hz.wav'
+    file_name_impulse1       = f'./../../sound/room_simulation/impulse_signal_ch1_{sampling_rate}Hz.wav'
+    file_name_impulse2       = f'./../../sound/room_simulation/impulse_signal_ch2_{sampling_rate}Hz.wav'
+    file_name_original       = f'./../../sound/original/music{music_type}_mono.wav'
+    file_name_original_long  = f'./../../sound/original/long_music{music_type}_mono.wav'
+    file_name_speaker1       = f'./../../sound/room_simulation/music{music_type}_room_ch1_{sampling_rate}Hz.wav'
+    file_name_speaker2       = f'./../../sound/room_simulation/music{music_type}_room_ch2_{sampling_rate}Hz.wav'
+    file_name_speaker_long   = f'./../../sound/room_simulation/long_music{music_type}_room_ch1_{sampling_rate}Hz.wav'
     # 読み込み
     impulse1, _ = sf.read(file_name_impulse1)
     impulse2, _ = sf.read(file_name_impulse2)
-    x, _        = sf.read(file_name_origin)
-    xlong, _    = sf.read(file_name_origin_long)
-    y1, _       = sf.read(file_name_spk1)
-    y2, _       = sf.read(file_name_spk2)
-    ylong, _    = sf.read(file_name_spk_long)
+    x, _        = sf.read(file_name_original)
+    xlong, _    = sf.read(file_name_original_long)
+    y1, _       = sf.read(file_name_speaker1)
+    y2, _       = sf.read(file_name_speaker2)
+    ylong, _    = sf.read(file_name_speaker_long)
 
     # スペクトログラム
     xspec   = stft(x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
     y1spec  = stft(y1, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
     y2spec  = stft(y2, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
-    y1zero  = stft(ylong, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+    quality_check_y1spec  = stft(ylong, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
 
     # 保存用の配列
     csp0_values = []
@@ -230,83 +230,88 @@ for num, amp in enumerate(embedding_amplitudes):
         csp1_average_spectral   = np.mean(csp1_spectral, axis=1)
         # 周波数領域から時間領域へ変換 (逆STFT)
         csp1_time_domain     = irfft(csp1_average_spectral, axis=0)
-
-        # -CSP0の整形-----
+        # -CSP1の整形-----
         # 不要な後半部を除去
         csp1_time_domain     = csp1_time_domain[:frame_length]
         # 最大値で正規化
         csp1_time_domain     = csp1_time_domain / np.max(csp1_time_domain)
 
+        # ------------------------------
+        # 3rd: 埋め込み周波数のみのCSP1を求める
+        # ------------------------------
         # --ゼロ埋め込み周波数の決定----------
         # 振幅(周波数?)の大きい順にインデックスを取得
-        pos         = np.argsort(-np.abs(CSP1))
+        sorted_frequency_indices    = np.argsort(-np.abs(csp1_average_spectral))
         # CSPの最大embedding_frequency_bins個の周波数
-        embedded_freq   = pos[:embedding_frequency_bins]
+        embedded_frequencies        = sorted_frequency_indices[:embedding_frequency_bins]
 
-        # --CSP1(埋込周波数のみ)を求める. CSP1の特定の周波数成分だけを抽出し, 時間領域に変換----------
-        # CSP1と同じ形状の配列を作成し, すべての値を0に初期化
-        CSP1_emb = np.zeros_like(CSP1)
-        # embedded_freqに指定された周波数成分だけをCSP1_embにコピーし, それ以外を0にする
-        CSP1_emb[embedded_freq]     = CSP1[embedded_freq]
-        # 特定の周波数成分だけを含む信号を時間領域に変換する
-        CSP1_emb_ave     = irfft(CSP1_emb, axis=0)
+        # --埋め込み周波数のみのCSP1を求める----------
+        # CSP1と同じ形状の配列を作成し, 全ての値を0に初期化
+        csp1_embedded_spectral      = np.zeros_like(csp1_average_spectral)
+        # 選択された周波数成分だけをコピー
+        csp1_embedded_spectral[embedded_frequencies] = csp1_average_spectral[embedded_frequencies]
+        # 特定の周波数成分だけを含む信号を時間領域に変換 (逆STFT)
+        csp1_embedded_time_domain   = irfft(csp1_embedded_spectral, axis=0)
 
-        # -CSP1の整形-----
-        # いらない後半部を除去
-        CSP1_emb_ave     = CSP1_emb_ave[:frame_length]
-        # 最大で割り算
-        CSP1_emb_ave     = CSP1_emb_ave/np.max(CSP1_emb_ave)
+        # -埋め込み周波数のみのCSP1の整形-----
+        # 不要な後半部を削除
+        csp1_embedded_time_domain   = csp1_embedded_time_domain[:frame_length]
+        # 最大値で正規化
+        csp1_embedded_time_domain   = csp1_embedded_time_domain / np.max(csp1_embedded_time_domain)
 
         # ------------------------------
-        # 3rd: 振幅変調と位相変調
+        # 4th: 振幅変調と位相変調
         # ------------------------------
-        # Y1 に対して振幅変調
-        y1emb[embedded_freq, :] = amp * y1emb[embedded_freq, :]        # embedded_freqの周波数ビンにamp倍
-        # Y1 に対して位相変調
-        theta = embedding_phase/180 * np.pi
-        y1emb[embedded_freq, :] = y1emb[embedded_freq, :] * np.exp(1j*theta)
+        # 振幅変調: 選択された周波数成分に対して振幅を変更
+        embedded_y1spec[embedded_frequencies, :] = amplitude_gain * embedded_y1spec[embedded_frequencies, :]        # embedded_freqの周波数ビンにamp倍
+        # 位相変調: 選択された周波数成分に対して位相を変更
+        phase_shift = embedding_phase / 180 * np.pi
+        embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
         # print(f'Y1emb shape: {y1emb.shape}')
 
-        # -音質検査用-----
-        y1zero[embedded_freq, frame_start_index:frame_start_index+3] = amp * y1zero[embedded_freq, frame_start_index:frame_start_index+3]
+        # 音質検査用の振幅変調 (埋め込み用の配列に適用)
+        quality_check_y1spec[embedded_frequencies, frame_start_index:frame_start_index+3] = amplitude_gain * quality_check_y1spec[embedded_frequencies, frame_start_index:frame_start_index+3]
 
         # ------------------------------
-        # 4th: CSP2を求める
+        # 5th: CSP2を求める
         # ------------------------------
-        # 埋め込み信号を利用している(Y1emb)
-        yspec   = y1emb + y2spec
-        # 相互相関(周波数領域)
-        XY2         = yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
-        # 相互相関の絶対値(周波数領域)
-        XY2abs       = np.abs(XY2)
-        # 分母がほぼ0になるのを防止
-        XY2abs[XY2abs < epsilon] = epsilon
-        # 白色化相互相関(周波数領域)
-        CSP2_sp      = XY2 / XY2abs
-        # 時間方向で平均
-        CSP2         = np.mean(CSP2_sp, axis=1)
-        # 逆STFT
-        CSP2_ave     = irfft(CSP2, axis=0)
+        # 埋め込み信号を利用している(embedded_y1spec)
+        yspec   = embedded_y1spec + y2spec
+        # 相互スペクトラム (クロススペクトラム) の計算
+        cross_spectrum_csp2 = xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
+        # クロススペクトラムの振幅を計算
+        cross_spectrum_magnitude_csp2 = np.abs(cross_spectrum_csp2)
+        # 振幅がゼロに近い場合のゼロ除算を回避するための調整
+        cross_spectrum_magnitude_csp2[cross_spectrum_magnitude_csp2 < epsilon] = epsilon
+        # 白色化相互スペクトラム (周波数領域)
+        csp2_spectral = cross_spectrum_csp2 / cross_spectrum_magnitude_csp2
+        # 周波数領域のCSP2を時間方向で平均
+        csp2_average_spectral = np.mean(csp2_spectral, axis=1)
+        # 周波数領域から時間領域へ変換 (逆STFT)
+        csp2_time_domain      = irfft(csp2_average_spectral, axis=0)
 
         # -CSP2の整形-----
         # いらない後半部を除去
-        CSP2_ave     = CSP2_ave[:frame_length]
+        csp2_time_domain     = csp2_time_domain[:frame_length]
         # 最大で割り算
-        CSP2_ave     = CSP2_ave/np.max(CSP2_ave)
+        csp2_time_domain     = csp2_time_domain / np.max(csp2_time_domain)
 
-        # --CSP2(埋込周波数のみ)を求める. CSP2の特定の周波数成分だけを抽出し, 時間領域に変換----------
-        # CSP2と同じ形状の配列を作成し, すべての値を0に初期化
-        CSP2_emb = np.zeros_like(CSP2)
-        # embedded_freqに指定された周波数成分だけをCSP2_embにコピーし, それ以外を0にする
-        CSP2_emb[embedded_freq]     = CSP2[embedded_freq]
+
+        # ------------------------------
+        # 6th: 埋め込み周波数のみのCSP2を求める
+        # ------------------------------
+        # csp2_average_spectralと同じ形状の配列を作成し, 全ての値を0に初期化
+        csp2_embedded_spectral = np.zeros_like(csp2_average_spectral)
+        # 選択された周波数成分 (embedded_frequencies) のみをコピー
+        csp2_embedded_spectral[embedded_frequencies] = csp2_average_spectral[embedded_frequencies]
         # 特定の周波数成分だけを含む信号を時間領域に変換する
-        CSP2_emb_ave = irfft(CSP2_emb, axis=0)
+        csp2_embedded_time_domain = irfft(csp2_embedded_spectral, axis=0)
 
         # -CSP2(埋込周波数のみ)の整形-----
-        # いらない後半部を除去
-        CSP2_emb_ave = CSP2_emb_ave[:frame_length]
-        # 最大で割り算
-        CSP2_emb_ave = CSP2_emb_ave / np.max(CSP2_emb_ave)
+        # 不要な後半部を除去
+        csp2_embedded_time_domain = csp2_embedded_time_domain[:frame_length]
+        # 最大値で正規化
+        csp2_embedded_time_domain = csp2_embedded_time_domain / np.max(csp2_embedded_time_domain)
 
         # ------------------------------
         # 5th: 重み付き差分CSPを求める
@@ -335,7 +340,7 @@ for num, amp in enumerate(embedding_amplitudes):
         # 6th: 重み付け差分CSPによる遅延推定
         # ------------------------------
         # CSPの差分
-        CSP_sub     = CSP1_ave - CSP2_ave
+        CSP_sub     = CSP1_ave - csp2_time_domain
         # 正規化
         CSP_sub     = CSP_sub / np.max(CSP_sub)
 
@@ -378,7 +383,7 @@ for num, amp in enumerate(embedding_amplitudes):
         # 9th: 計算結果を保存する
         # ------------------------------
         csp1_values.append(CSP1_ave)                            # CSP1
-        csp2_values.append(CSP2_ave)                            # CSP2
+        csp2_values.append(csp2_time_domain)                            # CSP2
         embedded_freq_csp1_values.append(CSP1_emb_ave)          # 特定の周波数成分だけを抽出したCSP1
         embedded_freq_csp2_values.append(CSP2_emb_ave)          # 特定の周波数成分だけを抽出したCSP2
         csp_difference_values.append(CSP_sub)                   # 差分CSP
