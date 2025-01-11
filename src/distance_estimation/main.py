@@ -314,82 +314,81 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
         csp2_embedded_time_domain = csp2_embedded_time_domain / np.max(csp2_embedded_time_domain)
 
         # ------------------------------
-        # 5th: 重み付き差分CSPを求める
+        # 7th: 重み付き差分CSPを求める
         # ------------------------------
         # -重みを計算する-----
-        # CSPのピーク位置を計算
-        pk_csp, _  = find_peaks(CSP1_ave, threshold=0.01)
-        # ピーク位置をピークの大きい順にインデックス取得
-        index      = np.argsort(-CSP1_ave[pk_csp])
-        # CSPの大きい順にembedding_frequency_bins位のピーク位置をピークの大きい順に取得
-        pk_csp     = pk_csp[index[:embedding_frequency_bins]]
-        # 第１スピーカの遅延推定 (CSPの最大ピーク位置)
-        delay1     = pk_csp[0]
+        # CSP1のピーク位置を計算
+        csp1_peak_positions, _ = find_peaks(csp1_time_domain, threshold=0.01)
+        # ピーク位置をピークの大きい順にソート
+        sorted_peak_indices    = np.argsort(-csp1_time_domain[csp1_peak_positions])
+        # 最大embedding_frequency_bins個のピーク位置を取得
+        selected_peak_positions = csp1_peak_positions[sorted_peak_indices[:embedding_frequency_bins]]
+        # 第1スピーカーの遅延推定 (最大ピーク位置)
+        primary_speaker_delay = selected_peak_positions[0]
 
-        # 重み
-        weight      = np.copy(CSP1_ave)
-        # 推定した第１スピーカのピークを除去
-        weight[delay1-3:delay1+3] = 0
-        # 閾値以下の値を0にする
-        weight[weight < threshold_ratio]   = 0
-        # 正規化
-        weight      = weight/np.max(np.abs(weight))
-
-
-        # ------------------------------
-        # 6th: 重み付け差分CSPによる遅延推定
-        # ------------------------------
-        # CSPの差分
-        CSP_sub     = CSP1_ave - csp2_time_domain
-        # 正規化
-        CSP_sub     = CSP_sub / np.max(CSP_sub)
-
-        # 重み付け埋込差分CSP
-        CSP_wt_sub  = weight*CSP_sub
+        # -重みの計算-----
+        csp1_weights      = np.copy(csp1_time_domain)
+        # 推定した第1スピーカーのピーク付近の値を0に設定
+        csp1_weights[primary_speaker_delay - 3: primary_speaker_delay + 3] = 0
+        # 閾値以下の値を0に設定
+        csp1_weights[csp1_weights < threshold_ratio] = 0
+        # 重みを正規化
+        csp1_weights = csp1_weights / np.max(np.abs(csp1_weights))
 
         # ------------------------------
-        # 7th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
-        # ------------------------------
-        # CSPのピーク位置を計算
-        pk_csp, _  = find_peaks(CSP1_emb_ave, threshold=0.01)
-        # ピーク位置をピークの大きい順にインデックス取得
-        index      = np.argsort(-CSP1_emb_ave[pk_csp])
-        # CSPの大きい順にembedding_frequency_bins位のピーク位置をピークの大きい順に取得
-        pk_csp     = pk_csp[index[:embedding_frequency_bins]]
-        # 第１スピーカの遅延推定 (CSPの最大ピーク位置)
-        delay1     = pk_csp[0]
-
-        # 重み
-        weight = np.copy(CSP1_emb_ave)
-        # 推定した第１スピーカのピークを除去
-        weight[delay1 - 3:delay1 + 3] = 0
-        # 閾値以下の値を除去
-        weight[weight < threshold_ratio] = 0
-        # 正規化
-        weight = weight / np.max(np.abs(weight))
-
-        # ------------------------------
-        # 8th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
+        # 8th: 重み付け差分CSPによる遅延推定
         # ------------------------------
         # CSPの差分
-        CSP_emb_sub     = CSP1_emb_ave - CSP2_emb_ave
-        # 正規化
-        CSP_emb_sub     = CSP_emb_sub / np.max(CSP_emb_sub)
+        csp_difference = csp1_time_domain - csp2_time_domain
+        # 差分CSPを正規化
+        normalized_csp_difference = csp_difference / np.max(csp_difference)
+
+        # 重み付け差分CSP
+        weighted_csp_difference = csp1_weights * normalized_csp_difference
+
+        # ------------------------------
+        # 9th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
+        # ------------------------------
+        # 埋め込み周波数成分を含むCSP1のピーク位置を計算
+        embedded_csp1_peak_positions, _ = find_peaks(csp1_embedded_time_domain, threshold=0.01)
+        # ピーク位置をピークの大きい順にソート
+        sorted_embedded_peak_indices = np.argsort(-csp1_embedded_time_domain[embedded_csp1_peak_positions])
+        # 最大embedding_frequency_bins個のピーク位置を取得
+        selected_embedded_peak_positions = embedded_csp1_peak_positions[sorted_embedded_peak_indices[:embedding_frequency_bins]]
+        # 第1スピーカーの遅延推定 (最大ピーク位置)
+        primary_embedded_speaker_delay = selected_embedded_peak_positions[0]
+
+        # 重みの計算
+        embedded_csp1_weights = np.copy(csp1_embedded_time_domain)
+        # 推定した第1スピーカーのピーク付近の値を0に設定
+        embedded_csp1_weights[primary_embedded_speaker_delay - 3 : primary_embedded_speaker_delay + 3] = 0
+        # 閾値以下の値を0に設定
+        embedded_csp1_weights[embedded_csp1_weights < threshold_ratio] = 0
+        # 重みを正規化
+        embedded_csp1_weights = embedded_csp1_weights / np.max(np.abs(embedded_csp1_weights))
+
+        # ------------------------------
+        # 10th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
+        # ------------------------------
+        # 埋め込み周波数におけるCSPの差分
+        embedded_csp_difference = csp1_embedded_time_domain - csp2_embedded_time_domain
+        # 差分CSPを正規化
+        normalized_embedded_csp_difference = embedded_csp_difference / np.max(embedded_csp_difference)
 
         # 重み付け埋込差分CSP
-        CSP_emb_wt      = weight*CSP_emb_sub
+        weighted_embedded_csp_difference = csp1_weights * normalized_embedded_csp_difference
 
         # ------------------------------
         # 9th: 計算結果を保存する
         # ------------------------------
-        csp1_values.append(CSP1_ave)                            # CSP1
-        csp2_values.append(csp2_time_domain)                            # CSP2
-        embedded_freq_csp1_values.append(CSP1_emb_ave)          # 特定の周波数成分だけを抽出したCSP1
-        embedded_freq_csp2_values.append(CSP2_emb_ave)          # 特定の周波数成分だけを抽出したCSP2
-        csp_difference_values.append(CSP_sub)                   # 差分CSP
-        weighted_csp_difference_values.append(CSP_wt_sub)       # 重み付け差分CSP
-        embedded_freq_csp_difference.append(CSP_emb_sub)        # 特定の周波数成分だけを抽出した差分CSP
-        embedded_freq_weighted_csp_values.append(CSP_emb_wt)    # 特定の周波数成分だけを抽出した重み付け差分CSP
+        csp1_values.append(csp1_time_domain)                                        # CSP1
+        csp2_values.append(csp2_time_domain)                                        # CSP2
+        embedded_freq_csp1_values.append(csp1_embedded_time_domain)                 # 特定の周波数成分だけを抽出したCSP1
+        embedded_freq_csp2_values.append(csp2_embedded_time_domain)                 # 特定の周波数成分だけを抽出したCSP2
+        csp_difference_values.append(normalized_csp_difference)                     # 差分CSP
+        weighted_csp_difference_values.append(weighted_csp_difference)              # 重み付け差分CSP
+        embedded_freq_csp_difference.append(normalized_embedded_csp_difference)     # 特定の周波数成分だけを抽出した差分CSP
+        embedded_freq_weighted_csp_values.append(weighted_embedded_csp_difference)  # 特定の周波数成分だけを抽出した重み付け差分CSP
 
     # numpyに変更
     csp1_values                         = np.array(csp1_values)
@@ -402,8 +401,8 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     embedded_freq_weighted_csp_values   = np.array(embedded_freq_weighted_csp_values)
 
     # 推定誤差を算出
-    distance_speaker1 = [f'{impulse_peak_positions[0]/sampling_rate*speed_of_sound:.2f},{1000*impulse_peak_positions[0]/sampling_rate:.2f}']
-    distance_speaker2 = [f'{impulse_peak_positions[1]/sampling_rate*speed_of_sound:.2f},{1000*impulse_peak_positions[1]/sampling_rate:.2f}']
+    distance_speaker1 = [f'{first_detected_peak_positions[0]/sampling_rate*speed_of_sound:.2f},{1000*first_detected_peak_positions[0]/sampling_rate:.2f}']
+    distance_speaker2 = [f'{first_detected_peak_positions[1]/sampling_rate*speed_of_sound:.2f},{1000*first_detected_peak_positions[1]/sampling_rate:.2f}']
     with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk1.csv', mode='a', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
         writer = csv.writer(file_distance_and_arrival_spk1)
 
@@ -444,11 +443,11 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     # 遅延推定誤差 (平均絶対誤差)
     error = []
     for delay in Delay:
-        # delay(推定遅延量)とadjusted_impulse_peaks(基準値)の差の絶対値を計算し, それらを足し合わせる.
-        tmp1 = np.sum(np.abs(delay - adjusted_impulse_peaks))
+        # delay(推定遅延量)とdelay_adjusted_peak_positions(基準値)の差の絶対値を計算し, それらを足し合わせる.
+        tmp1 = np.sum(np.abs(delay - delay_adjusted_peak_positions))
         # 遅延ペア([delay1, delay2])の順序が逆である場合の誤差を計算.
         # 遅延ペアの順序が異なっている場合の比較を考慮している.
-        tmp2 = np.sum(np.abs(np.flip(delay) - adjusted_impulse_peaks))
+        tmp2 = np.sum(np.abs(np.flip(delay) - delay_adjusted_peak_positions))
         # tmp1, tmp2のうち, 小さい方の値(最小誤差)を選択して, リストerrorに追加.
         error.append(np.min([tmp1, tmp2]))
     # リストerrorに格納されたすべての遅延誤差の平均を計算し,
@@ -462,10 +461,10 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     for csp2, delay in zip(embedded_freq_weighted_csp_values, Delay):
         # まずcsp1が第１スピーカと第２スピーカどちらの遅延を検知したか判定
         # 結果をpos_truthに保存.
-        if np.abs(delay[0] - adjusted_impulse_peaks[0]) < np.abs(delay[0] - adjusted_impulse_peaks[1]):
-            pos_truth = adjusted_impulse_peaks[1]  # csp2はpos_imp[1]を推定したと判定
+        if np.abs(delay[0] - delay_adjusted_peak_positions[0]) < np.abs(delay[0] - delay_adjusted_peak_positions[1]):
+            pos_truth = delay_adjusted_peak_positions[1]  # csp2はpos_imp[1]を推定したと判定
         else:
-            pos_truth = adjusted_impulse_peaks[0]  # csp2はpos_imp[0]を推定したと判定
+            pos_truth = delay_adjusted_peak_positions[0]  # csp2はpos_imp[0]を推定したと判定
 
         # 真の遅延 pos_truth におけるピーク振幅を取得.
         csp2_peak = csp2[pos_truth]
@@ -495,9 +494,9 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     # 11th: 音質評価
     # ------------------------------
     # 時間波形
-    frames  = min([y1spec.shape[1], y1zero.shape[1]])
+    frames  = min([y1spec.shape[1], quality_check_y1spec.shape[1]])
     y1_orig = istft(y1spec[:,:frames], hop_length=hop_length)
-    y1_emb  = istft(y1zero[:,:frames], hop_length=hop_length)
+    y1_emb  = istft(quality_check_y1spec[:,:frames], hop_length=hop_length)
 
     # PESQ
     y1_orig_ds = resample(y1_orig[:sampling_rate*5], orig_sr=sampling_rate, target_sr=sampling_rate)
@@ -516,7 +515,7 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
 
     pesq_scores.append(score)
 
-    sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amp:.2f}.wav', y1_emb, sampling_rate)
+    sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amplitude_gain:.2f}.wav', y1_emb, sampling_rate)
 
     # 確認用の表示
     # print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
