@@ -16,7 +16,7 @@ from scipy.fft import irfft
 # ------------------------------
 
 # 音源の選択 (1 or 2)
-music_type      = 1
+music_type      = 2
 # サンプリング周波数 [Hz]
 sampling_rate   = 44100
 # 音速 [m/s]
@@ -418,72 +418,72 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
             writer.writerow([dist_m, dist_mm])
 
     # ------------------------------
-    # 10th: 遅延量推定精度を求める
+    # 10th: 遅延量を求める
     # ------------------------------
 
-    # csp1_valuesとembedded_freq_weighted_csp_valuesに基づいて, 遅延量(delay)を推定し,
-    # その結果をリストDelayに格納する.
-    Delay = []
-    for csp1, csp2 in zip(csp1_values, embedded_freq_weighted_csp_values):
-        # 遅延量の推定
-        csp1_imp = []
-        csp1_peaks, _ = find_peaks(csp1, height=0.5)
-        # 最初に検出されたピークの位置(csp1_peaks[0])をcsp1_impに追加
-        csp1_imp.append(csp1_peaks[0])
-        # csp1における最初のピーク位置(csp1_imp[0])をdelay1として保存する.
-        delay1 = csp1_imp[0]
-        # csp2の最大値を持つインデックスを取得し, それをdelay2として保存する.
-        delay2 = np.argmax(csp2)
-        # delay1(csp1のピーク位置)とdelay2(csp2の最大値位置)を配列として格納する.
-        delay = np.array([delay1, delay2])
-        Delay.append(delay)
+    # csp1_valuesとembedded_freq_weighted_csp_valuesに基づいて, 各遅延量(delay1, delay2)を推定し,
+    # その結果をリスト delays に格納する.
+    delays = []
+    for csp1_signal, csp2_signal in zip(csp1_values, embedded_freq_weighted_csp_values):
 
-    Delay = np.array(Delay)
+        # CSP1における最初のピーク位置を取得
+        csp1_peaks, _ = find_peaks(csp1_signal, height=0.5)
+        first_csp1_peak_position = csp1_peaks[0]    # 最初に検出されたピーク位置
 
-    # 遅延推定誤差 (平均絶対誤差)
-    error = []
-    for delay in Delay:
-        # delay(推定遅延量)とdelay_adjusted_peak_positions(基準値)の差の絶対値を計算し, それらを足し合わせる.
-        tmp1 = np.sum(np.abs(delay - delay_adjusted_peak_positions))
-        # 遅延ペア([delay1, delay2])の順序が逆である場合の誤差を計算.
-        # 遅延ペアの順序が異なっている場合の比較を考慮している.
-        tmp2 = np.sum(np.abs(np.flip(delay) - delay_adjusted_peak_positions))
-        # tmp1, tmp2のうち, 小さい方の値(最小誤差)を選択して, リストerrorに追加.
-        error.append(np.min([tmp1, tmp2]))
-    # リストerrorに格納されたすべての遅延誤差の平均を計算し,
-    # 全体としての平均的な遅延誤差を取得.
-    error = np.mean(np.array(error))
-    # サンプル数単位から時間単位へ変換
-    mean_delay_error_ms = 1000 * (error / sampling_rate)
+        # CSP2の最大値の位置を取得
+        csp2_peak_position = np.argmax(csp2_signal)
+
+        # 遅延量 (delay1, delay2) を配列として格納
+        delay_pair = np.array([first_csp1_peak_position, csp2_peak_position])
+        delays.append(delay_pair)
+
+    # リストをnumpy配列に変換
+    delays = np.array(delays)
+
+    # 遅延推定誤差を計算する (平均絶対誤差)
+    delay_errors = []
+    for estimated_delay_pair in delays:
+        # 推定された遅延量と基準値 (delay_adjusted_peak_positions) の差を計算
+        error_direct = np.sum(np.abs(estimated_delay_pair - delay_adjusted_peak_positions))
+        # 遅延推定ペアの順序が逆の場合の誤差を計算
+        error_flipped = np.sum(np.abs(np.flip(estimated_delay_pair) - delay_adjusted_peak_positions))
+        # 最小の誤差を選択してリストに追加
+        delay_errors.append(np.min([error_direct, error_flipped]))
+    # 遅延誤差の平均値を計算
+    delay_error_mean = np.mean(np.array(delay_errors))
+    # サンプル単位の誤差を時間単位 (ミリ秒) に変換
+    mean_delay_error_ms = 1000 * (delay_error_mean / sampling_rate)
+    # 結果をリストに保存
     delay_time_errors.append(mean_delay_error_ms)
 
-    PR_data = []
-    for csp2, delay in zip(embedded_freq_weighted_csp_values, Delay):
-        # まずcsp1が第１スピーカと第２スピーカどちらの遅延を検知したか判定
-        # 結果をpos_truthに保存.
-        if np.abs(delay[0] - delay_adjusted_peak_positions[0]) < np.abs(delay[0] - delay_adjusted_peak_positions[1]):
-            pos_truth = delay_adjusted_peak_positions[1]  # csp2はpos_imp[1]を推定したと判定
+    # --------------------
+    # Peak Ratioを計算する
+    # --------------------
+    peak_ratios = []
+
+    for csp2_signal, estimated_delay_pair in zip(embedded_freq_weighted_csp_values, delays):
+        # CSP1が第1スピーカーと第2スピーカーどちらの遅延を検知したか判定
+        # 判定結果を真の遅延位置 (true_delay_position) として保存
+        if np.abs(estimated_delay_pair[0] - delay_adjusted_peak_positions[0]) < np.abs(estimated_delay_pair[0] - delay_adjusted_peak_positions[1]):
+            true_delay_position = delay_adjusted_peak_positions[1]  # csp2はスピーカー2を推定したと判定
         else:
-            pos_truth = delay_adjusted_peak_positions[0]  # csp2はpos_imp[0]を推定したと判定
+            true_delay_position = delay_adjusted_peak_positions[0]  # csp2はスピーカー1を推定したと判定
 
-        # 真の遅延 pos_truth におけるピーク振幅を取得.
-        csp2_peak = csp2[pos_truth]
+        # 真の遅延位置におけるピーク振幅を取得
+        true_peak_amplitude = csp2_signal[true_delay_position]
 
-        # それ以外での最大ピーク
-        # csp2のコピーを作成する
-        tmp = np.copy(csp2)
-        # 真の遅延位置(pos_truth)を0に設定
-        tmp[pos_truth] = 0
-        # 他のピークの中で最大値を探す(np.max(tmp)).
-        peak_2nd = np.max(tmp)
+        # 真の遅延位置以外での最大ピーク振幅を取得 (真の遅延位置をゼロにし, その次に大きい振幅を保存することで, 2番目に大きい振幅を得ている)
+        csp2_signal_copy = np.copy(csp2_signal)
+        csp2_signal_copy[true_delay_position] = 0   # 真の遅延位置をゼロに設定
+        secondary_peak_amplitude = np.max(csp2_signal_copy)
 
-        # 真のピークが他のピークよりどれだけ際立っているかを数値化.
-        PR_data.append(csp2_peak / (np.max([peak_2nd, 10 ** (-8)])))
+        # Peak Ratioを計算し, リストに保存
+        peak_ratios.append(true_peak_amplitude / (np.max([secondary_peak_amplitude, 1e-8])))
 
-    # numpy配列に変換
-    PR_data = np.array(PR_data)
+    # リストをnumpy配列に変換
+    peak_ratios = np.array(peak_ratios)
 
-    Peak_Ratio = [f'{np.mean(PR_data):.2f},{np.min(PR_data):.2f},{(PR_data[PR_data >= 1].size / PR_data.size)*100:2.0f}']
+    Peak_Ratio = [f'{np.mean(peak_ratios):.2f},{np.min(peak_ratios):.2f},{(peak_ratios[peak_ratios >= 1].size / peak_ratios.size)*100:2.0f}']
     with open(f'./../../data/distance_estimation/music{music_type}_mono/peak_ratio.csv', mode='a', newline='', encoding='utf-8') as file_peak_ratio:
         writer = csv.writer(file_peak_ratio)
         for entry in Peak_Ratio:
@@ -491,21 +491,25 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
             writer.writerow([dist_m, dist_mm, dist_mmm])
 
     # ------------------------------
-    # 11th: 音質評価
+    # 11th: 音質評価 (PESQとSNR)
     # ------------------------------
-    # 時間波形
-    frames  = min([y1spec.shape[1], quality_check_y1spec.shape[1]])
-    y1_orig = istft(y1spec[:,:frames], hop_length=hop_length)
-    y1_emb  = istft(quality_check_y1spec[:,:frames], hop_length=hop_length)
 
-    # PESQ
-    y1_orig_ds = resample(y1_orig[:sampling_rate*5], orig_sr=sampling_rate, target_sr=sampling_rate)
-    y1_emb_ds  = resample(y1_emb[:sampling_rate*5] , orig_sr=sampling_rate, target_sr=sampling_rate)
-    score = pesq(16000, y1_orig_ds, y1_emb_ds)
-    # SNR
-    snr = 20 * np.log10(sum(y1_orig ** 2) / sum((y1_orig - y1_emb) ** 2))
+    # ISTFTを用いて時間波形に変換
+    num_frames  = min([y1spec.shape[1], quality_check_y1spec.shape[1]])
+    original_waveform = istft(y1spec[:,:num_frames], hop_length=hop_length)
+    embedded_waveform = istft(quality_check_y1spec[:,:num_frames], hop_length=hop_length)
 
-    pesq_and_snr = [f'{score:.2f},{snr:.2f}']
+    # PESQ (音質スコア) の計算
+    original_waveform_downsampled = resample(original_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
+    embedded_waveform_downsampled = resample(embedded_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
+    pesq_score = pesq(16000, original_waveform_downsampled, embedded_waveform_downsampled)
+
+    # SNR (信号対雑音比) の計算
+    signal_power = sum(original_waveform ** 2)
+    noise_power  = sum((original_waveform - embedded_waveform) ** 2)
+    snr = 20 * np.log10(signal_power / noise_power)
+
+    pesq_and_snr = [f'{pesq_score:.2f},{snr:.2f}']
     with open(f'./../../data/distance_estimation/music{music_type}_mono/pesq.csv', mode='a', newline='', encoding='utf-8') as file_pesq:
         writer = csv.writer(file_pesq)
 
@@ -513,13 +517,18 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
             dist_m, dist_mm = entry.split(',')
             writer.writerow([dist_m, dist_mm])
 
-    pesq_scores.append(score)
+    pesq_scores.append(pesq_score)
 
-    sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amplitude_gain:.2f}.wav', y1_emb, sampling_rate)
+    sf.write(
+        f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amplitude_gain:.2f}.wav',
+        embedded_waveform,
+        sampling_rate
+    )
 
     # 確認用の表示
     # print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
+# numpy配列に変換
 delay_time_errors = np.array(delay_time_errors)
 pesq_scores = np.array(pesq_scores)
 
