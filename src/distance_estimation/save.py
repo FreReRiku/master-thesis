@@ -1,11 +1,11 @@
-# make_data.py
-# main.pyでの計算で得られたリストをCSV形式で書き出します.
+# save.py
+# 計算結果をCSV形式で保存します.
 # Created by FreReRiku on 2025/01/16
 
 import numpy as np
 import csv
 
-def output_csv(input_array, item_name, output_file_name):
+def to_csv(input_array, item_name, output_file_name):
 
     """
     指定されたnumpy配列を読み込み, 新しいヘッダー行を追加してCSV形式で書き出します.
