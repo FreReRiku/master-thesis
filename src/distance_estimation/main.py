@@ -9,15 +9,15 @@ import calc
 import numpy as np
 import visualize
 
-# 使用する楽曲のタイプ
-music_type = [1, 2]
+music_type = [1, 2]         # 使用する楽曲のタイプ
 
 
 for music in music_type:
+
     calc.gcc_phat(music_type=music)
     
-    # 保存するCSVファイルのパス
-    output_path = f'./../../data/distance_estimation/music{music}_mono/csv_files'
+    output_path = f'./../../data/distance_estimation/music{music}_mono/csv_files'       # 保存するCSVファイルのパス
+
     visualize.plot_embedding_error(
         music_type=music,
         delay_time_errors_file=f'{output_path}/delay_time_errors.csv',
