@@ -1,7 +1,24 @@
-.PHONY: all room_simulation distance_estimation
+.PHONY: all create_dirs room_simulation distance_estimation
 
 # デフォルトターゲット
-all: room_simulation distance_estimation
+all: create_dirs room_simulation distance_estimation
+
+# 必要なディレクトリを作成
+create_dirs:
+	@echo "Creating necessary directories..."
+	@root_dir="." && \
+	dirs=(\
+	"$$root_dir/data/distance_estimation" \
+	"$$root_dir/data/room_simulation" \
+	"$$root_dir/figure/distance_estimation" \
+	"$$root_dir/figure/room_simulation" \
+	"$$root_dir/sound/distance_estimation/music1_mono" \
+	"$$root_dir/sound/distance_estimation/music2_mono" \
+	"$$root_dir/sound/room_simulation" \
+	) && \
+	for dir in $${dirs[@]}; do \
+		mkdir -p "$$dir"; \
+	done
 
 # src/room_simulation/main.py を実行
 room_simulation:
