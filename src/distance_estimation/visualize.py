@@ -83,6 +83,7 @@ def plot_embedding_error(
     plt.savefig(filename)
     print(f"Figure saved to {filename}")
     
+    plt.clf()
     # 表示 (必要ならコメントアウト解除で有効化してください)
     # plt.show()
     
