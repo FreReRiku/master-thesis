@@ -18,8 +18,18 @@ def output_csv(input_array, item_name, output_file_name):
         出力ファイルに追加するヘッダー名.
     output_file_name : str
         データを保存する出力CSVファイルへのパス.
+    
+    Return
+    ------
+    None
 
     """
+
+    # 入力配列が1次元の場合, 2次元配列に変換
+    if input_array.ndim == 1:
+        input_array = input_array.reshape(-1, 1)
+    elif input_array.ndim != 2:
+        raise ValueError("Input array must be 1-dimensional or 2-dimensional")
 
     # 出力ファイルにデータを書き込む
     with open(output_file_name, mode='w', newline='') as outfile:
