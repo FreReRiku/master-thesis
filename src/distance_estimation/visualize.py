@@ -32,8 +32,8 @@ def plot_embedding_error(
         PESQスコアを含むCSVファイルのパス.
     speed_of_sound: float
         音速.
-    music_type=music_type: int
-        使用する楽曲のタイプ. (デフォルト: main.py内のmusic_typeと同じ値を使用します.)
+    music_type: int
+        使用する楽曲のタイプ.
     num: str
         プロットのウィンドウ名.
     figsize: tuple
