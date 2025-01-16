@@ -6,18 +6,19 @@ CSVファイルを用いてグラフを作成します.
 
 Created by FreReRiku on 2025/01/17
 """
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
 def plot_embedding_error(
+        music_type,
         delay_time_errors_file,
         pesq_scores_file,
         embedding_amplitudes,
-        speed_of_sound,
-        music_type,
+        speed_of_sound=340.29,
         num='埋め込み強度変化',
         figsize=(6, 3),
-        output_path='./../../figure/distance_estimation/plot_embedding_error/'):
+        output_path='./../../figure/distance_estimation/plot_embedding_error'):
 
     """
     埋込強度変化に伴う推定誤差とPESQの変化をプロットする関数.
