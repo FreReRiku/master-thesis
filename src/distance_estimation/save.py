@@ -1,8 +1,11 @@
-# save.py
-# 計算結果をCSV形式で保存します.
-# Created by FreReRiku on 2025/01/16
+"""
+save.py
+----------
 
-import numpy as np
+計算結果をCSV形式で保存します.
+
+Created by FreReRiku on 2025/01/16
+"""
 import csv
 
 def to_csv(input_array, item_name, output_file_name):
