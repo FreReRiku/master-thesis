@@ -341,7 +341,7 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
         weighted_embedded_csp_difference = csp1_weights * normalized_embedded_csp_difference
         
         # ------------------------------
-        # 9th: 計算結果を保存する
+        # 11th: 計算結果を保存する
         # ------------------------------
         csp1_values.append(csp1_time_domain)                                        # CSP1
         csp2_values.append(csp2_time_domain)                                        # CSP2
@@ -365,7 +365,7 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     embedded_freq_weighted_csp_values   = np.array(embedded_freq_weighted_csp_values)
     
     # ------------------------------
-    # 10th: 遅延量を求める
+    # 12th: 遅延量を求める
     # ------------------------------
     
     # csp1_valuesとembedded_freq_weighted_csp_valuesに基づいて, 各遅延量(delay1, delay2)を推定し,
@@ -404,7 +404,7 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     delay_time_errors.append(mean_delay_error_ms)
     
     # --------------------
-    # Peak Ratioを計算する
+    # 13th: Peak Ratioを計算する
     # --------------------
     peak_ratios = []
     
@@ -431,7 +431,7 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     peak_ratios = np.array(peak_ratios)
     
     # ------------------------------
-    # 11th: 音質評価 (PESQとSNR)
+    # 14th: 音質評価 (PESQとSNR)
     # ------------------------------
     
     # ISTFTを用いて時間波形に変換
@@ -459,7 +459,7 @@ pesq_scores = np.array(pesq_scores)
 
 
 # ------------------------------
-# 12th: CSV形式で計算結果を出力
+# 15th: CSV形式で計算結果を出力
 # ------------------------------
 
 # 保存先のパス
@@ -481,7 +481,7 @@ save.to_csv(pesq_scores, 'pesq_scores', f'{output_path}/pesq_scores.csv')
 
 
 # ------------------------------
-# 13th: グラフ描画
+# 16th: グラフ描画
 # ------------------------------
 
 visualize.plot_embedding_error(
