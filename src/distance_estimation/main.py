@@ -5,18 +5,19 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
-import csv
+import make_data
+import visualize
 from pesq import pesq
 from librosa import stft, istft, resample
 from scipy.signal import find_peaks
 from scipy.fft import irfft
 
 # ------------------------------
-# パラメータ
+# 1st: パラメータの設定
 # ------------------------------
 
 # 音源の選択 (1 or 2)
-music_type      = 2
+music_type      = 1
 # サンプリング周波数 [Hz]
 sampling_rate   = 44100
 # 音速 [m/s]
@@ -46,59 +47,24 @@ pos_st_frame = np.arange(0, num_trials*frame_count, frame_count)
 # CSPの最大値に対するノイズと判定する振幅比のしきい値(const)
 threshold_ratio  = 0.2
 
-# -埋め込む振幅の設定-----
+# ----------------
+# 埋め込み設定
+# ----------------
+
+# -振幅の設定-----
 # ループ回数 [times]
 loop_times = 25
 # 埋め込む振幅
 embedding_amplitudes    = np.linspace(0, 1, loop_times)
-# -埋め込む位相の設定-----
+
+# -位相の設定-----
 embedding_phase  = 0
 
 # ゼロ除算回避定数 (const)
 epsilon = 1e-20
 
-# -データ格納用のリストの初期化-----
-# 遅延推定誤差記録用
-delay_time_errors = []
-# 音質評価記録用
-pesq_scores = []
-# スピーカー1とマイク間の距離・到来時間の記録用
-distance_speaker1 = []
-# スピーカー2とマイク間の距離・到来時間の記録用
-distance_speaker2 = []
-
-# ------------------------------
-# ファイル出力
-# ------------------------------
-
-# 初期条件の出力
-with open(f'./../../data/distance_estimation/music{music_type}_mono/init_information.csv', mode='w', newline='', encoding='utf-8') as file_init_information:
-    writer = csv.writer(file_init_information)
-    writer.writerows( [
-    [f'{frame_length+1}binのうちゼロを埋め込む周波数ビンの数[bin]','1回の検知で埋め込むフレーム数[フレーム]','試行回数[回]'],
-    [f'{embedding_frequency_bins}',f'{num_embedding_frames}',f'{len(pos_st_frame)}']
-])
-
-# スピーカー1におけるマイク・スピーカー間距離、到来時間の出力
-with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk1.csv', mode='w', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
-    writer = csv.writer(file_distance_and_arrival_spk1)
-    writer.writerow(['マイク・スピーカ間距離[m]','到来時間[ms]'])
-
-# スピーカー2におけるマイク・スピーカー間距離、到来時間の出力
-with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk2.csv', mode='w', newline='', encoding='utf-8') as file_distance_and_arrival_spk2:
-    writer = csv.writer(file_distance_and_arrival_spk2)
-    writer.writerow(['マイク・スピーカ間距離[m]','到来時間[ms]'])
-
-# ピークレシオ・検知確率の出力
-with open(f'./../../data/distance_estimation/music{music_type}_mono/peak_ratio.csv', mode='w', newline='', encoding='utf-8') as file_peak_ratio:
-    writer = csv.writer(file_peak_ratio)
-    writer.writerow(['平均Peak Ratio','最小Peak Ratio','正しく検知できる確率[%]'])
-
-# PESQ、SN比の出力
-with open(f'./../../data/distance_estimation/music{music_type}_mono/pesq.csv', mode='w', newline='', encoding='utf-8') as file_pesq:
-    writer = csv.writer(file_pesq)
-    writer.writerow(['PESQ','SNR[dB]'])
-
+delay_time_errors = []                  # 遅延推定誤差記録用
+pesq_scores = []                        # 音質評価記録用
 
 for num, amplitude_gain in enumerate(embedding_amplitudes):
     # ------------------------------
@@ -128,7 +94,11 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     y2spec  = stft(y2, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
     quality_check_y1spec  = stft(ylong, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
 
-    # 保存用の配列
+    # -データ格納用のリストの初期化-----
+    distance_speaker1 = []                  # スピーカー1とマイク間の距離・到来時間の記録用
+    distance_speaker2 = []                  # スピーカー2とマイク間の距離・到来時間の記録用
+    first_detected_peak_positions = []      # 最初に検出されたインパルス応答のピーク位置の記録用
+    delay_adjusted_peak_positions = []      # 遅延時間を除いたインパルス応答ピークの記録用
     csp0_values = []
     csp1_values = []
     csp2_values = []
@@ -138,6 +108,7 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     weighted_csp_difference_values      = []
     embedded_freq_csp_difference        = []
     embedded_freq_weighted_csp_values   = []
+
 
     # ------------------------------
     # 1st: CSP0, 及び 遅延距離d_0 の推定
@@ -175,10 +146,6 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
         estimated_delay = (np.argmax(csp0_values)-67)
 
     # --インパルスのピーク位置の推定----------
-    # 最初に検出されたインパルス応答のピーク位置の記録用
-    first_detected_peak_positions = []
-    # 遅延時間を除いたインパルス応答ピークの記録用
-    delay_adjusted_peak_positions = []
 
     # find_peaks関数を用いて、ピークを推定・記録
     for impulse_response in [impulse1, impulse2]:
@@ -186,14 +153,6 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
         peak_positions, _ = find_peaks(impulse_response, height=0.6)        # height: ピーク検出の閾値
         first_detected_peak_positions.append(peak_positions[0])                    # 最初のピークを記録
         delay_adjusted_peak_positions.append(peak_positions[0]-estimated_delay)    # 遅延時間を調整
-
-    # numpy配列に変換
-    first_detected_peak_positions = np.array(first_detected_peak_positions)
-    delay_adjusted_peak_positions = np.array(delay_adjusted_peak_positions)
-
-    # デバッグ用
-    # print(first_detected_peak_positions)
-    # print(delay_adjusted_peak_positions)
 
     # 遅延時間を考慮して音声信号をトリミング
     x_delay_adjusted_signal       = xlong[start_sample-estimated_delay : end_sample-estimated_delay]
@@ -391,6 +350,8 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
         embedded_freq_weighted_csp_values.append(weighted_embedded_csp_difference)  # 特定の周波数成分だけを抽出した重み付け差分CSP
 
     # numpyに変更
+    first_detected_peak_positions       = np.array(first_detected_peak_positions)
+    delay_adjusted_peak_positions       = np.array(delay_adjusted_peak_positions)
     csp1_values                         = np.array(csp1_values)
     csp2_values                         = np.array(csp2_values)
     embedded_freq_csp1_values           = np.array(embedded_freq_csp1_values)
@@ -399,23 +360,6 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     weighted_csp_difference_values      = np.array(weighted_csp_difference_values)
     embedded_freq_csp_difference        = np.array(embedded_freq_csp_difference)
     embedded_freq_weighted_csp_values   = np.array(embedded_freq_weighted_csp_values)
-
-    # 推定誤差を算出
-    distance_speaker1 = [f'{first_detected_peak_positions[0]/sampling_rate*speed_of_sound:.2f},{1000*first_detected_peak_positions[0]/sampling_rate:.2f}']
-    distance_speaker2 = [f'{first_detected_peak_positions[1]/sampling_rate*speed_of_sound:.2f},{1000*first_detected_peak_positions[1]/sampling_rate:.2f}']
-    with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk1.csv', mode='a', newline='', encoding='utf-8') as file_distance_and_arrival_spk1:
-        writer = csv.writer(file_distance_and_arrival_spk1)
-
-        for entry in distance_speaker1:
-            dist_m, dist_mm = entry.split(',')
-            writer.writerow([dist_m, dist_mm])
-
-    with open(f'./../../data/distance_estimation/music{music_type}_mono/distance_and_arrival_spk2.csv', mode='a', newline='', encoding='utf-8') as file_distance_and_arrival_spk2:
-        writer = csv.writer(file_distance_and_arrival_spk2)
-
-        for entry in distance_speaker2:
-            dist_m, dist_mm = entry.split(',')
-            writer.writerow([dist_m, dist_mm])
 
     # ------------------------------
     # 10th: 遅延量を求める
@@ -483,13 +427,6 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     # リストをnumpy配列に変換
     peak_ratios = np.array(peak_ratios)
 
-    Peak_Ratio = [f'{np.mean(peak_ratios):.2f},{np.min(peak_ratios):.2f},{(peak_ratios[peak_ratios >= 1].size / peak_ratios.size)*100:2.0f}']
-    with open(f'./../../data/distance_estimation/music{music_type}_mono/peak_ratio.csv', mode='a', newline='', encoding='utf-8') as file_peak_ratio:
-        writer = csv.writer(file_peak_ratio)
-        for entry in Peak_Ratio:
-            dist_m, dist_mm, dist_mmm = entry.split(',')
-            writer.writerow([dist_m, dist_mm, dist_mmm])
-
     # ------------------------------
     # 11th: 音質評価 (PESQとSNR)
     # ------------------------------
@@ -503,55 +440,52 @@ for num, amplitude_gain in enumerate(embedding_amplitudes):
     original_waveform_downsampled = resample(original_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
     embedded_waveform_downsampled = resample(embedded_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
     pesq_score = pesq(16000, original_waveform_downsampled, embedded_waveform_downsampled)
+    pesq_scores.append(pesq_score)
 
     # SNR (信号対雑音比) の計算
     signal_power = sum(original_waveform ** 2)
     noise_power  = sum((original_waveform - embedded_waveform) ** 2)
     snr = 20 * np.log10(signal_power / noise_power)
 
-    pesq_and_snr = [f'{pesq_score:.2f},{snr:.2f}']
-    with open(f'./../../data/distance_estimation/music{music_type}_mono/pesq.csv', mode='a', newline='', encoding='utf-8') as file_pesq:
-        writer = csv.writer(file_pesq)
-
-        for entry in pesq_and_snr:
-            dist_m, dist_mm = entry.split(',')
-            writer.writerow([dist_m, dist_mm])
-
-    pesq_scores.append(pesq_score)
-
-    sf.write(
-        f'./../../sound/distance_estimation/music{music_type}_mono/embded_music{music_type}_gain={amplitude_gain:.2f}.wav',
-        embedded_waveform,
-        sampling_rate
-    )
-
     # 確認用の表示
-    # print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
+    print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
 # numpy配列に変換
 delay_time_errors = np.array(delay_time_errors)
 pesq_scores = np.array(pesq_scores)
 
+
 # ------------------------------
-# 12th: 埋込強度の変化に伴う推定誤差結果の変化をプロット
+# 12th: CSV形式で計算結果を出力
 # ------------------------------
-fig = plt.figure(num='埋込強度変化', figsize=(6, 3))
-plt.subplots_adjust(bottom=0.15)
-ax1 = fig.add_subplot(1, 1, 1)
 
-ax1.plot(embedding_amplitudes, delay_time_errors*speed_of_sound/1000, label='Distance Estimation Error')
-ax1.set_xlim([-0.05,1.0])
-ax1.set_xlabel("Embedding Amplitude Gain")
-ax1.set_ylabel("Estimation Distance Error[m]")
+# 保存先のパス
+output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files'
 
-ax2 = ax1.twinx()
-ax2.plot(embedding_amplitudes, pesq_scores, 'r', label='PESQ')
-ax2.set_ylim([-0.05, 5.5])
-ax2.set_ylabel("PESQ")
+# リストをCSV形式で書き出し
+make_data.output_csv(first_detected_peak_positions, 'first_detected_peak_positions', f'{output_path}/first_detected_peak_positions.csv')
+make_data.output_csv(delay_adjusted_peak_positions, 'delay_adjusted_peak_positions', f'{output_path}/delay_adjusted_peak_positions.csv')
+make_data.output_csv(csp1_values, 'csp1_values', f'{output_path}/csp1_values.csv')
+make_data.output_csv(csp2_values, 'csp2_values', f'{output_path}/csp2_values.csv')
+make_data.output_csv(embedded_freq_csp1_values, 'embedded_freq_csp1_values', f'{output_path}/embedded_freq_csp1_values.csv')
+make_data.output_csv(embedded_freq_csp2_values, 'embedded_freq_csp2_values', f'{output_path}/embedded_freq_csp2_values.csv')
+make_data.output_csv(csp_difference_values, 'csp_difference_values', f'{output_path}/csp_difference_values.csv')
+make_data.output_csv(weighted_csp_difference_values, 'weighted_csp_difference_values', f'{output_path}/weighted_csp_difference_values.csv')
+make_data.output_csv(embedded_freq_csp_difference, 'embedded_freq_csp_difference', f'{output_path}/embedded_freq_csp_difference.csv')
+make_data.output_csv(embedded_freq_weighted_csp_values, 'embedded_freq_weighted_csp_values', f'{output_path}/embedded_freq_weighted_csp_values.csv')
+make_data.output_csv(delay_time_errors, 'delay_time_errors', f'{output_path}/delay_time_errors.csv')
+make_data.output_csv(pesq_scores, 'pesq_scores', f'{output_path}/pesq_scores.csv')
 
-lines1, labels1 = ax1.get_legend_handles_labels()
-lines2, labels2 = ax2.get_legend_handles_labels()
-ax2.legend(lines1+lines2, labels1+labels2, loc='lower right')
 
-plt.savefig(f'./../../figure/distance_estimation/music{music_type}_Amp_vs_PESQ.png')
-# plt.show()
+# ------------------------------
+# 13th: グラフ描画
+# ------------------------------
+
+visualize.plot_embedding_error(
+    delay_time_errors_file=f'{output_path}/delay_time_errors.csv',
+    pesq_scores_file=f'{output_path}/pesq_scores.csv',
+    embedding_amplitudes=embedding_amplitudes,
+    music_type=music_type,
+    speed_of_sound=speed_of_sound
+    )
+
