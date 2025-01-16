@@ -13,12 +13,12 @@ def room(music_type):
     import pyroomacoustics as pra
     import soundfile as sf
     from scipy.io import wavfile
-    import display
+    import save
     import convert
 
     # --使用音源, スピーカーの設定----------
-    # 使用する音源の選択(1 or 2)
-    music_type = 2
+    # 使用する音源の選択
+    music_type = music_type
     # スピーカーの数
     num_spk = 2
     # 各スピーカーに音源を割り当てる
@@ -27,8 +27,8 @@ def room(music_type):
         fs, channel = wavfile.read(f'./../../sound/original/long_music{music_type}_mono.wav')
         channels.append(channel)
 
-    # デバッグ用
-    # display.sr_and_spk(fs, channels)
+    # サンプリング周波数とチャンネル数をCSV形式で書き出す
+    save.sr_and_spk(fs, channels)
 
     # --オリジナル音源をトリミングする----------
     # サンプリング周波数 [Hz]
@@ -54,8 +54,8 @@ def room(music_type):
     # Sabineの残響式から壁面の平均吸音率と鏡像法での反射回数の上限を求める
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dimensions)
 
-    # デバッグ用
-    # display.room_info(e_absorption, max_order)
+    # 部屋の情報をCSV形式で書き出す
+    save.room_info(e_absorption, max_order)
 
     # 壁の材質設定
     m = pra.make_materials(
