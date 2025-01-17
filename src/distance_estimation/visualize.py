@@ -9,6 +9,7 @@ Created by FreReRiku on 2025/01/17
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 def plot_embedding_error(
         music_type,
@@ -81,10 +82,83 @@ def plot_embedding_error(
     # 保存
     filename = f"{output_path}/music{music_type}_Amp_vs_PESQ.png"
     plt.savefig(filename)
-    print(f"Figure saved to {filename}")
+    print(f"画像が保存されました: {filename}")
     
     plt.clf()
     # 表示 (必要ならコメントアウト解除で有効化してください)
     # plt.show()
     
     return
+
+def plot_impulse(
+        num,
+        figsize,
+        impulse_position_data_path,
+        fs,
+        impulse_response_path,
+        fft_points,
+        ):
+    """
+    インパルス応答をプロットする関数.
+    
+    Parameters
+    ----------
+    num: str
+        プロットのウィンドウ名.
+    figsize: tuple
+        図のサイズ. (デフォルト: (6, 3))
+    impulse_position_data_path: str
+        インパルス応答のピーク位置を含むCSVファイルのパス.
+    fs: int
+        サンプリング周波数.
+    impulse_response_path: str
+        インパルス応答の波形データを含むCSVファイルのパス.
+    fft_points: int
+        FFT点数.
+    
+    Returns
+    -------
+    None
+    
+    """
+
+    # --------------------
+    # CSVファイルの読み込み
+    # --------------------
+    try:
+        impulse_position_data = pd.read_csv(impulse_position_data_path, header=None).squeeze("columns")
+        impulse_position_data = pd.to_numeric(impulse_position_data, errors='coerce').dropna().to_numpy()
+
+        impulse_response = pd.read_csv(impulse_response_path, header=None).squeeze("columns")
+        impulse_response = pd.to_numeric(impulse_response, errors='coerce').dropna().to_numpy()
+
+    except Exception as e:
+        print(f"Error loading CSV files: {e}")
+        return
+    
+    # --------------------
+    # インパルス応答のプロット
+    # --------------------
+    output_path = './../../figure/distance_estimation/plot_impulse'
+    time_axis = np.arange(fft_points) / fs
+    
+    fig = plt.figure(num=num, figsize=figsize)
+    plt.subplots_adjust(bottom=0.15)
+    ax = fig.add_subplot(1, 1, 1)
+    for p, c in zip(impulse_position_data, ['r', 'g']):
+        ax.axvline(1000 * p / fs, color=c, linestyle='--')
+    ax.plot(1000*time_axis, impulse_response[:fft_points])
+    ax.set_xlabel("Time [ms]", fontname="MS Gothic")
+    ax.set_ylabel("Amplitude")
+    ax.set_title('Impulse')
+    ax.set_xlim([1000*time_axis[0], 1000*time_axis[-1]])
+
+    # 保存
+    filename = f"{output_path}/impulse.svg"
+    
+    plt.savefig(filename)
+
+    print(f"画像が保存されました: {filename}")
+    return
+    
+
