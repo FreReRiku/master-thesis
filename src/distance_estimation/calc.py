@@ -95,6 +95,9 @@ def gcc_phat(music_type):
         y1, _       = sf.read(file_name_speaker1)
         y2, _       = sf.read(file_name_speaker2)
         ylong, _    = sf.read(file_name_speaker_long)
+
+        # インパルス応答の足し合わせ
+        impulse = impulse1 + impulse2
     
         # スペクトログラム
         xspec   = stft(x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
@@ -471,6 +474,7 @@ def gcc_phat(music_type):
     output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files'
     
     # リストをCSV形式で書き出し
+    save.to_csv(impulse, 'impulse', f'{output_path}/impulse.csv')
     save.to_csv(first_detected_peak_positions, 'first_detected_peak_positions', f'{output_path}/first_detected_peak_positions.csv')
     save.to_csv(delay_adjusted_peak_positions, 'delay_adjusted_peak_positions', f'{output_path}/delay_adjusted_peak_positions.csv')
     save.to_csv(csp1_values, 'csp1_values', f'{output_path}/csp1_values.csv')
