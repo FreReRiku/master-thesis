@@ -35,8 +35,6 @@ Temporary Items
 /**/__pycache__/
 
 # 使用する音源データ以外のファイルを除外
-/sound/original/music1_mono.wav
-/sound/original/music2_mono.wav
 /sound/distance_estimation/
 /sound/room_simulation/
 
