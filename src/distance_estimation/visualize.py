@@ -94,18 +94,8 @@ def plot_impulse(music_type):
     
     Parameters
     ----------
-    num: str
-        プロットのウィンドウ名.
-    figsize: tuple
-        図のサイズ. (デフォルト: (6, 3))
-    impulse_position_data_path: str
-        インパルス応答のピーク位置を含むCSVファイルのパス.
-    fs: int
-        サンプリング周波数.
-    impulse_response_path: str
-        インパルス応答の波形データを含むCSVファイルのパス.
-    fft_points: int
-        FFT点数.
+    music_type: int
+        使用する楽曲のタイプ.
     
     Returns
     -------
@@ -163,6 +153,21 @@ def plot_impulse(music_type):
     
 
 def plot_mean_embedded_csp(music_type):
+    """
+    埋め込み周波数を利用したCSPグラフを作成する関数.
+    
+    この関数は、与えられた音楽データの埋め込みCSPに基づく平均的なグラフをプロットし、結果を保存します。
+    
+    Parameters
+    ----------
+    music_type: int
+        使用する楽曲のタイプ.
+    
+    Returns
+    -------
+    None
+    
+    """
     
     # 変数設定
     fft_points = 1024
@@ -176,7 +181,7 @@ def plot_mean_embedded_csp(music_type):
     embedded_subtract_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp_difference.csv'
     embedded_weighted_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_weighted_csp_values.csv'
     delay_adjusted_peak_positions_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/delay_adjusted_peak_positions.csv'
-
+    
     # --------------------
     # CSVファイルの読み込み
     # --------------------
@@ -186,14 +191,14 @@ def plot_mean_embedded_csp(music_type):
         embedded_csp2 = pd.read_csv(embedded_csp2_path, header=None, skiprows=1).to_numpy()
         embedded_subtract_csp = pd.read_csv(embedded_subtract_csp_path, header=None, skiprows=1).to_numpy()
         embedded_weighted_csp = pd.read_csv(embedded_weighted_csp_path, header=None, skiprows=1).to_numpy()
-
+        
         # 1列データの読み込み
         delay_adjusted_peak_positions = pd.read_csv(delay_adjusted_peak_positions_path, header=None, skiprows=1).squeeze("columns").to_numpy()
-
+    
     except Exception as e:
         print(f"Error loading CSV files: {e}")
         return
-
+    
     fig = plt.figure(num='CSP(埋め込み周波数のみ)', figsize=(6, 6))
     plt.subplots_adjust(wspace=0.4, hspace=0.8)
     ax1 = fig.add_subplot(3, 1, 1)
@@ -235,7 +240,7 @@ def plot_mean_embedded_csp(music_type):
     ax3.set_xlim([1000*time_axis[0], 1000*time_axis[-1]])
     _, y_max = ax3.get_ylim()
     ax3.set_ylim([0, y_max])
-
+    
     # 保存
     output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_csp'
     filename = f"{output_path}/csp.svg"
