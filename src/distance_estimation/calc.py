@@ -452,12 +452,15 @@ def gcc_phat(music_type):
         embedded_waveform_downsampled = resample(embedded_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
         pesq_score = pesq(16000, original_waveform_downsampled, embedded_waveform_downsampled)
         pesq_scores.append(pesq_score)
-    
+        
         # SNR (信号対雑音比) の計算
         signal_power = sum(original_waveform ** 2)
         noise_power  = sum((original_waveform - embedded_waveform) ** 2)
         snr = 20 * np.log10(signal_power / noise_power)
-    
+        
+        # 生成された音源の作成
+        sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embedded_music{music_type}_gain{amplitude_gain:.2f}.wav', embedded_waveform, sampling_rate)
+        
         # 確認用の表示
         print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
 
