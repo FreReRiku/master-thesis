@@ -32,14 +32,13 @@ def plot_embedding_error(music_type):
     fft_points = 1024
     fs = 44100
     time_axis = np.arange(fft_points) / fs
-    threshold_ratio = 0.2
 
     embedding_amplitudes = np.linspace(0, 1, 25)
     speed_of_sound=340.29
 
     # 使用するCSVファイルのパスを指定
-    delay_time_errors_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/delay_time_errors.csv'
-    pesq_scores_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/pesq_scores.csv'
+    delay_time_errors_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/delay_time_errors.csv'
+    pesq_scores_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/pesq_scores.csv'
     # --------------------
     # CSVファイルの読み込み
     # --------------------
@@ -107,11 +106,10 @@ def plot_impulse(music_type):
     fft_points = 1024
     fs = 44100
     time_axis = np.arange(fft_points) / fs
-    threshold_ratio = 0.2
 
     # 使用するCSVファイルのパスを指定
-    impulse_position_data_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/first_detected_peak_positions.csv'
-    impulse_response_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/impulse.csv'
+    impulse_position_data_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/first_detected_peak_positions.csv'
+    impulse_response_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/impulse.csv'
 
     # --------------------
     # CSVファイルの読み込み
@@ -176,12 +174,12 @@ def plot_mean_embedded_csp(music_type):
     threshold_ratio = 0.2
     
     # 使用するCSVファイルのパスを指定
-    # embedded_csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp1_values.csv'
-    csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/csp1_values.csv'
-    embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp2_values.csv'
-    embedded_subtract_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp_difference.csv'
-    embedded_weighted_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_weighted_csp_values.csv'
-    delay_adjusted_peak_positions_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/delay_adjusted_peak_positions.csv'
+    # embedded_csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp1_values.csv'
+    csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/csp1_values.csv'
+    embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp2_values.csv'
+    embedded_subtract_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp_difference.csv'
+    embedded_weighted_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_weighted_csp_values.csv'
+    delay_adjusted_peak_positions_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/delay_adjusted_peak_positions.csv'
     
     # --------------------
     # CSVファイルの読み込み
