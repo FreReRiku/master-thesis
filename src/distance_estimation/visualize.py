@@ -78,7 +78,7 @@ def plot_embedding_error(music_type):
     
     # 保存
     output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_embedding_error'
-    filename = f"{output_path}/Amp_vs_PESQ.svg"
+    filename = f"{output_path}/amplitude_gain_vs_PESQ.svg"
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     
@@ -176,7 +176,8 @@ def plot_mean_embedded_csp(music_type):
     threshold_ratio = 0.2
     
     # 使用するCSVファイルのパスを指定
-    embedded_csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp1_values.csv'
+    # embedded_csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp1_values.csv'
+    csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/csp1_values.csv'
     embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp2_values.csv'
     embedded_subtract_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_csp_difference.csv'
     embedded_weighted_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/embedded_freq_weighted_csp_values.csv'
@@ -187,7 +188,8 @@ def plot_mean_embedded_csp(music_type):
     # --------------------
     try:
         # 2次元データの読み込み
-        embedded_csp1 = pd.read_csv(embedded_csp1_path, header=None, skiprows=1).to_numpy()
+        csp1 = pd.read_csv(csp1_path, header=None, skiprows=1).to_numpy()
+        # embedded_csp1 = pd.read_csv(embedded_csp1_path, header=None, skiprows=1).to_numpy()
         embedded_csp2 = pd.read_csv(embedded_csp2_path, header=None, skiprows=1).to_numpy()
         embedded_subtract_csp = pd.read_csv(embedded_subtract_csp_path, header=None, skiprows=1).to_numpy()
         embedded_weighted_csp = pd.read_csv(embedded_weighted_csp_path, header=None, skiprows=1).to_numpy()
@@ -206,7 +208,8 @@ def plot_mean_embedded_csp(music_type):
     ax3 = fig.add_subplot(3, 1, 3)
     
     # 各計算結果をプロット
-    mean_emb_freq_csp1          = np.mean(embedded_csp1[:, :fft_points], axis=0)
+    mean_csp1          = np.mean(csp1[:, :fft_points], axis=0)
+    # mean_emb_freq_csp1          = np.mean(embedded_csp1[:, :fft_points], axis=0)
     mean_emb_freq_csp2          = np.mean(embedded_csp2[:, :fft_points], axis=0)
     mean_emb_freq_subtract_csp  = np.mean(embedded_subtract_csp[:, :fft_points], axis=0)
     mean_emb_freq_weighted_csp  = np.mean(embedded_weighted_csp[:, :fft_points], axis=0)
@@ -216,7 +219,8 @@ def plot_mean_embedded_csp(music_type):
             ax.axvline(1000*p/fs, color=c, linestyle='--')
         for ax in [ax1, ax2]:
             ax.axhline(threshold_ratio, color='k', linestyle=':')
-    ax1.plot(1000*time_axis, mean_emb_freq_csp1)
+    ax1.plot(1000*time_axis, mean_csp1)
+    # ax1.plot(1000*time_axis, mean_emb_freq_csp1)
     ax2.plot(1000*time_axis, mean_emb_freq_csp2)
     ax3.plot(1000*time_axis, mean_emb_freq_subtract_csp, 'lightgray')
     ax3.plot(1000*time_axis, mean_emb_freq_weighted_csp, 'r')
