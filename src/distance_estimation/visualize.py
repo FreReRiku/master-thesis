@@ -78,7 +78,7 @@ def plot_embedding_error(music_type):
     
     # 保存
     output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_embedding_error'
-    filename = f"{output_path}/music{music_type}_Amp_vs_PESQ.png"
+    filename = f"{output_path}/Amp_vs_PESQ.svg"
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     
