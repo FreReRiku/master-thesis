@@ -403,7 +403,7 @@ def gcc_phat(music_type):
         for csp1_signal, csp2_signal in zip(csp1_values, embedded_freq_weighted_csp_values):
         
             # CSP1における最初のピーク位置を取得
-            csp1_peaks, _ = find_peaks(csp1_signal, height=0.5)
+            csp1_peaks, _ = find_peaks(csp1_signal, height=0.7)
             first_csp1_peak_position = csp1_peaks[0]    # 最初に検出されたピーク位置
         
             # CSP2の最大値の位置を取得
