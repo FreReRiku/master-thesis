@@ -66,7 +66,7 @@ def gcc_phat(music_type):
     ]
 
     # CSVファイルに出力
-    setting_parameters_csv_file = f"./../../data/distance_estimation/music1_mono/setting_parameters.csv"
+    setting_parameters_csv_file = f"./../../data/distance_estimation/music{music_type}_mono/csv_files/logs/setting_parameters.csv"
     with open(setting_parameters_csv_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerows(setting_parameters_data)
@@ -495,7 +495,7 @@ def gcc_phat(music_type):
     # ------------------------------
 
     # 保存するCSVファイルのパス
-    output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files'
+    output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data'
     
     # リストをCSV形式で書き出し
     save.to_csv(impulse, 'impulse', f'{output_path}/impulse.csv')
