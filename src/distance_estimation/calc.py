@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 import save
+import csv
 from pesq import pesq
 from librosa import stft, istft, resample
 from scipy.signal import find_peaks
@@ -28,7 +29,7 @@ def gcc_phat(music_type):
     # 音速 [m/s]
     speed_of_sound  = 340.29
     # サンプル長 [sample]
-    signal_length_samples   = sampling_rate * 10
+    signal_length_samples   = 16000 * 18
     # フレーム長 [sample]
     frame_length    = 1024
     # ホップ長 [sample]
@@ -47,10 +48,28 @@ def gcc_phat(music_type):
     # 埋め込み周波数のビン数 [sample]
     embedding_frequency_bins    = np.floor(frame_length*0.1).astype(int)
     # スタートのフレーム位置(ここからKフレーム用いる)
-    frame_count = round(sampling_rate*3/16000)     # フレームカウント
-    pos_st_frame = np.arange(0, num_trials*frame_count, frame_count)
+    pos_st_frame = np.arange(0, num_trials*3, 3)
+    # frame_count = round(16000*3/16000)     # フレームカウント
+    # pos_st_frame = np.arange(0, num_trials*frame_count, frame_count)
     # CSPの最大値に対するノイズと判定する振幅比のしきい値(const)
     threshold_ratio  = 0.2
+
+    # --------------------------
+    # 設定したパラメーターを記録
+    # --------------------------
+
+    # CSV出力用データ準備
+    setting_parameters_data = [
+        ["設定条件"],
+        ["ゼロを埋め込む周波数ビンの数 [bin]", "合計周波数ビン数 [bin]", "一回の検知で埋め込むフレーム数", "試行回数"],
+        [f"{embedding_frequency_bins}", f"{frame_length + 1}", f"{num_embedding_frames}", f"{len(pos_st_frame)}"]
+    ]
+
+    # CSVファイルに出力
+    setting_parameters_csv_file = f"./../../data/distance_estimation/music1_mono/setting_parameters.csv"
+    with open(setting_parameters_csv_file, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(setting_parameters_data)
 
     # ----------------
     # 埋め込み設定
@@ -63,7 +82,7 @@ def gcc_phat(music_type):
     embedding_amplitudes    = np.linspace(0, 1, loop_times)
 
     # -位相の設定-----
-    embedding_phase  = 0
+    # embedding_phase  = 0
 
     # ゼロ除算回避定数 (const)
     epsilon = 1e-20
@@ -82,34 +101,37 @@ def gcc_phat(music_type):
         file_name_impulse1       = f'./../../sound/room_simulation/impulse_signal_ch1_{sampling_rate}Hz.wav'
         file_name_impulse2       = f'./../../sound/room_simulation/impulse_signal_ch2_{sampling_rate}Hz.wav'
         file_name_original       = f'./../../sound/original/music{music_type}_mono.wav'
-        file_name_original_long  = f'./../../sound/original/long_music{music_type}_mono.wav'
         file_name_speaker1       = f'./../../sound/room_simulation/music{music_type}_room_ch1_{sampling_rate}Hz.wav'
         file_name_speaker2       = f'./../../sound/room_simulation/music{music_type}_room_ch2_{sampling_rate}Hz.wav'
-        file_name_speaker_long   = f'./../../sound/room_simulation/long_music{music_type}_room_ch1_{sampling_rate}Hz.wav'
     
         # 読み込み
         impulse1, _ = sf.read(file_name_impulse1)
         impulse2, _ = sf.read(file_name_impulse2)
         x, _        = sf.read(file_name_original)
-        xlong, _    = sf.read(file_name_original_long)
         y1, _       = sf.read(file_name_speaker1)
         y2, _       = sf.read(file_name_speaker2)
-        ylong, _    = sf.read(file_name_speaker_long)
 
-        # インパルス応答の足し合わせ
-        impulse = impulse1 + impulse2
+        # ------------------------------
+        # オーディオファイルの編集
+        # ------------------------------
+
+        # インパルス応答の足し合わせとトリミング
+        impulse = impulse1[:2500] + impulse2[:2500]
     
+        # オーディオファイルのトリミング
+        x_0     = x[start_sample:end_sample]         # オリジナル音源
+        y1_0    = y1[start_sample:end_sample]        # スピーカーS1から収録した音源
+        y2_0    = y2[start_sample:end_sample]        # スピーカーS2から収録した音源
+
         # スペクトログラム
-        xspec   = stft(x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
-        y1spec  = stft(y1, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
-        y2spec  = stft(y2, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
-        quality_check_y1spec  = stft(ylong, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+        xspec       = stft(x_0,  n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
+        y1spec      = stft(y1_0, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+        y2spec      = stft(y2_0, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+        y1zero      = stft(y1,   n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
     
         # -データ格納用のリストの初期化-----
         distance_speaker1 = []                  # スピーカー1とマイク間の距離・到来時間の記録用
         distance_speaker2 = []                  # スピーカー2とマイク間の距離・到来時間の記録用
-        first_detected_peak_positions = []      # 最初に検出されたインパルス応答のピーク位置の記録用
-        delay_adjusted_peak_positions = []      # 遅延時間を除いたインパルス応答ピークの記録用
         csp0_values = []
         csp1_values = []
         csp2_values = []
@@ -119,19 +141,19 @@ def gcc_phat(music_type):
         weighted_csp_difference_values      = []
         embedded_freq_csp_difference        = []
         embedded_freq_weighted_csp_values   = []
-    
-    
+
+
         # ------------------------------
-        # 1st: CSP0, 及び 遅延距離d_0 の推定
+        # 1st: CSP0, d_0 の推定
         # ------------------------------
         for frame_start_index in pos_st_frame:
-    
+            
             # マイク入力音声のスペクトログラム(スペクトログラムの合成)
             yspec = y1spec + y2spec
         
             # --CSP0を求める(GCC-PHAT法)----------
             # クロススペクトラムの計算
-            cross_spectrum_csp0 = xspec[:, frame_start_index : frame_start_index + num_embedding_frames] * np.conj(yspec[:, frame_start_index:frame_start_index + num_embedding_frames])
+            cross_spectrum_csp0 = yspec[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(xspec[:, frame_start_index:frame_start_index+num_embedding_frames])
             # クロススペクトラムの振幅を計算
             cross_spectrum_magnitude_csp0 = np.abs(cross_spectrum_csp0)
             # 振幅がゼロに近い場合のゼロ除算を回避するための調整
@@ -153,30 +175,29 @@ def gcc_phat(music_type):
             csp0_values.append(csp0_time_domain)
         
             # -dを推定-----
-            # 注: 現在のオフセット値(67)を動的に調整する仕組みが必要
-            estimated_delay = (np.argmax(csp0_values)-67)
-    
+            # 注: 現在のオフセット値(25)を動的に調整する仕組みが必要
+            estimated_delay = (np.argmax(csp0_values)-25)
+
+        # print(estimated_delay)
         # --インパルスのピーク位置の推定----------
-    
+
+        first_detected_peak_positions = []      # 最初に検出されたインパルス応答のピーク位置の記録用
+        delay_adjusted_peak_positions = []      # 遅延時間を除いたインパルス応答ピークの記録用
+
         # find_peaks関数を用いて、ピークを推定・記録
         for impulse_response in [impulse1, impulse2]:
             # find_peaks関数を使って, ピークを推定・記録
-            peak_positions, _ = find_peaks(impulse_response, height=0.6)        # height: ピーク検出の閾値
-            first_detected_peak_positions.append(peak_positions[0])                    # 最初のピークを記録
-            delay_adjusted_peak_positions.append(peak_positions[0]-estimated_delay)    # 遅延時間を調整
+            peak_positions, _ = find_peaks(impulse_response, height=0.6)                # height: ピーク検出の閾値
+            first_detected_peak_positions.append(peak_positions[0])                     # 最初のピークを記録
+            delay_adjusted_peak_positions.append(peak_positions[0]-estimated_delay)     # 遅延時間を調整
     
         # 遅延時間を考慮して音声信号をトリミング
-        x_delay_adjusted_signal       = xlong[start_sample-estimated_delay : end_sample-estimated_delay]
+        x = x[start_sample-estimated_delay : end_sample-estimated_delay]
     
         # 遅延時間を考慮したスペクトログラムを生成
-        x_delay_adjusted_spectrogram  = stft(
-            x_delay_adjusted_signal,
-            n_fft       = 2 * frame_length,
-            hop_length  = hop_length,
-            win_length  = frame_length,
-            center=False
-        )
-    
+        xspec = stft(x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
+        
+        
         for frame_start_index in pos_st_frame:
         
             # 埋め込み用の配列
@@ -189,7 +210,7 @@ def gcc_phat(music_type):
             # 2nd: CSP1を求める
             # ------------------------------
             # クロススペクトラムの計算
-            cross_spectrum_csp1 = x_delay_adjusted_spectrogram[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(yspec[:, frame_start_index:frame_start_index+num_embedding_frames])
+            cross_spectrum_csp1 = yspec[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(xspec[:, frame_start_index:frame_start_index+num_embedding_frames])
             # クロススペクトラムの振幅を計算
             cross_spectrum_magnitude_csp1 = np.abs(cross_spectrum_csp1)
             # 振幅がゼロに近い場合のゼロ除算を回避するための調整
@@ -235,12 +256,12 @@ def gcc_phat(music_type):
             # 振幅変調: 選択された周波数成分に対して振幅を変更
             embedded_y1spec[embedded_frequencies, :] = amplitude_gain * embedded_y1spec[embedded_frequencies, :]        # embedded_freqの周波数ビンにamp倍
             # 位相変調: 選択された周波数成分に対して位相を変更
-            phase_shift = embedding_phase / 180 * np.pi
-            embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
+            # phase_shift = embedding_phase / 180 * np.pi
+            # embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
             # print(f'Y1emb shape: {y1emb.shape}')
         
             # 音質検査用の振幅変調 (埋め込み用の配列に適用)
-            quality_check_y1spec[embedded_frequencies, frame_start_index:frame_start_index+3] = amplitude_gain * quality_check_y1spec[embedded_frequencies, frame_start_index:frame_start_index+3]
+            y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = amplitude_gain * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
         
             # ------------------------------
             # 5th: CSP2を求める
@@ -248,7 +269,7 @@ def gcc_phat(music_type):
             # 埋め込み信号を利用している(embedded_y1spec)
             yspec   = embedded_y1spec + y2spec
             # 相互スペクトラム (クロススペクトラム) の計算
-            cross_spectrum_csp2 = xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
+            cross_spectrum_csp2 = yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
             # クロススペクトラムの振幅を計算
             cross_spectrum_magnitude_csp2 = np.abs(cross_spectrum_csp2)
             # 振幅がゼロに近い場合のゼロ除算を回避するための調整
@@ -443,9 +464,9 @@ def gcc_phat(music_type):
         # ------------------------------
     
         # ISTFTを用いて時間波形に変換
-        num_frames  = min([y1spec.shape[1], quality_check_y1spec.shape[1]])
+        num_frames  = min([y1spec.shape[1], y1zero.shape[1]])
         original_waveform = istft(y1spec[:,:num_frames], hop_length=hop_length)
-        embedded_waveform = istft(quality_check_y1spec[:,:num_frames], hop_length=hop_length)
+        embedded_waveform = istft(y1zero[:,:num_frames], hop_length=hop_length)
     
         # PESQ (音質スコア) の計算
         original_waveform_downsampled = resample(original_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
