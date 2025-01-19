@@ -10,4 +10,4 @@ import simulate
 music_type = [1, 2]
 
 for music in music_type:
-    simulate.room(music_type=music)
+    simulate.room(music)
