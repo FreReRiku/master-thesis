@@ -39,28 +39,31 @@ def room(music_type):
     rt60 = 0.3
     # 部屋の寸法[m]
     room_dimensions = [3.52, 3.52, 2.4]
-    # Sabineの残響式から壁面の平均吸音率と鏡像法での反射回数の上限を求める
+    # Sabineの残響式から壁面の平均吸音率と鏡像法での反射回数の上限を求める (e_absorption, max_order)
     e_absorption, max_order = pra.inverse_sabine(rt60, room_dimensions)
+
+    # テスト用: max_orderを強制的に5に設定
+    max_order = 5
 
     # 部屋の情報をCSV形式で書き出す
     save.room_info(e_absorption, max_order)
 
-    # 壁の材質設定
-    m = pra.make_materials(
-        ceiling =   "plasterboard",
-        floor   =   "carpet_cotton",
-        east    =   "plasterboard",
-        south   =   "plasterboard",
-        west    =   "plasterboard",
-        north   =   "plasterboard",
-    )
+    # # 壁の材質設定
+    # m = pra.make_materials(
+    #     ceiling =   "plasterboard",
+    #     floor   =   "carpet_cotton",
+    #     east    =   "plasterboard",
+    #     south   =   "plasterboard",
+    #     west    =   "plasterboard",
+    #     north   =   "plasterboard",
+    # )
 
     # 設定をroomに反映
     room = pra.ShoeBox(
         p           = room_dimensions,
         t0          = 0.0,
         fs          = fs,
-        materials   = m,
+        materials   = pra.Material(e_absorption),
         max_order   = max_order
     )
 
