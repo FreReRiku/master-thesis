@@ -19,5 +19,7 @@ for music in music_type:
     visualize.plot_embedding_error(music)
     visualize.plot_impulse(music)
     visualize.plot_mean_embedded_csp(music)
+    visualize.plot_embedded_frequencies(music)
+    visualize.plot_audio_waveform(music)
 
 print("Completed!!!")
