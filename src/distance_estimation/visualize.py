@@ -251,3 +251,81 @@ def plot_mean_embedded_csp(music_type):
     plt.clf()
     
     return
+
+def plot_embedded_frequencies(music_type):
+    
+    # 変数設定
+    frame_length    = 1024
+    sampling_rate   = 44100
+
+    # 埋め込み周波数のCSVファイルのパス
+    data_file_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_frequencies.csv'
+
+    # CSVファイルを読み込み
+    data_file = pd.read_csv(data_file_path)
+
+    # ヘッダー行を取り除き, 埋め込まれた周波数を取得
+    embedded_frequencies = data_file["embedded_frequencies"]
+
+    # 範囲外のインデックスを除外
+    valid_indices = embedded_frequencies[embedded_frequencies < (frame_length // 2 + 1)]
+
+    # 周波数ビンから実際の周波数スケールに変換
+    freq_bins = np.linspace(0, sampling_rate / 2, frame_length // 2 + 1)
+    frequencies = freq_bins[valid_indices]
+
+    # 描画
+    plt.figure(figsize=(12, 6))
+    plt.hist(frequencies, bins=50, edgecolor='black', alpha=0.7)
+    plt.title("Distribution of Embedded Frequencies")
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Count")
+    plt.grid(True)
+
+    
+    # 保存
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_embedded_frequencies'
+    filename = f"{output_path}/embedded_frequencies.svg"
+    plt.savefig(filename)
+    print(f"画像が保存されました: {filename}")
+    plt.clf()
+
+    return
+
+def plot_audio_waveform(music_type):
+
+    # 変数設定
+    sampling_rate   = 44100
+
+    # 埋め込み周波数のCSVファイルのパス
+    data_file_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/music{music_type}_mono_trimmed.csv'
+
+    # CSVファイルを読み込み
+    data_file = pd.read_csv(data_file_path)
+
+    # ヘッダー行を取り除き, 埋め込まれた周波数を取得
+    amplitude = data_file.iloc[:, 0]
+
+    # 時間軸の生成
+    duration = len(amplitude) / sampling_rate
+    time = np.linspace(0, duration, len(amplitude))
+
+
+    # 描画
+    plt.figure(figsize=(12, 6))
+    plt.plot(time, amplitude, color='blue')
+    plt.title("Sound_signal")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Amplitude")
+    plt.grid(True)
+    plt.tight_layout()
+
+    
+    # 保存
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_audio_waveform'
+    filename = f"{output_path}/audio_waveform.svg"
+    plt.savefig(filename)
+    print(f"画像が保存されました: {filename}")
+    plt.clf()
+
+    return
