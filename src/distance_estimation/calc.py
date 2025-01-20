@@ -132,6 +132,7 @@ def gcc_phat(music_type):
         # -データ格納用のリストの初期化-----
         distance_speaker1 = []                  # スピーカー1とマイク間の距離・到来時間の記録用
         distance_speaker2 = []                  # スピーカー2とマイク間の距離・到来時間の記録用
+        store_embedded_frequencies = []               # 埋め込まれた周波数を記録するためのリスト
         csp0_values = []
         csp1_values = []
         csp2_values = []
@@ -374,6 +375,7 @@ def gcc_phat(music_type):
             # ------------------------------
             csp1_values.append(csp1_time_domain)                                        # CSP1
             csp2_values.append(csp2_time_domain)                                        # CSP2
+            store_embedded_frequencies.append(embedded_frequencies)
             embedded_freq_csp1_values.append(csp1_embedded_time_domain)                 # 特定の周波数成分だけを抽出したCSP1
             embedded_freq_csp2_values.append(csp2_embedded_time_domain)                 # 特定の周波数成分だけを抽出したCSP2
             csp_difference_values.append(normalized_csp_difference)                     # 差分CSP
@@ -384,6 +386,7 @@ def gcc_phat(music_type):
         # numpyに変更
         first_detected_peak_positions       = np.array(first_detected_peak_positions)
         delay_adjusted_peak_positions       = np.array(delay_adjusted_peak_positions)
+        store_embedded_frequencies          = np.array(store_embedded_frequencies)
         csp1_values                         = np.array(csp1_values)
         csp2_values                         = np.array(csp2_values)
         embedded_freq_csp1_values           = np.array(embedded_freq_csp1_values)
@@ -498,11 +501,13 @@ def gcc_phat(music_type):
     output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data'
     
     # リストをCSV形式で書き出し
+    save.to_csv(x_0, f'music{music_type}_mono_trimmed', f'{output_path}/music{music_type}_mono_trimmed.csv')
     save.to_csv(impulse, 'impulse', f'{output_path}/impulse.csv')
     save.to_csv(first_detected_peak_positions, 'first_detected_peak_positions', f'{output_path}/first_detected_peak_positions.csv')
     save.to_csv(delay_adjusted_peak_positions, 'delay_adjusted_peak_positions', f'{output_path}/delay_adjusted_peak_positions.csv')
     save.to_csv(csp1_values, 'csp1_values', f'{output_path}/csp1_values.csv')
     save.to_csv(csp2_values, 'csp2_values', f'{output_path}/csp2_values.csv')
+    save.to_csv(store_embedded_frequencies, 'embedded_frequencies', f'{output_path}/embedded_frequencies.csv')
     save.to_csv(embedded_freq_csp1_values, 'embedded_freq_csp1_values', f'{output_path}/embedded_freq_csp1_values.csv')
     save.to_csv(embedded_freq_csp2_values, 'embedded_freq_csp2_values', f'{output_path}/embedded_freq_csp2_values.csv')
     save.to_csv(csp_difference_values, 'csp_difference_values', f'{output_path}/csp_difference_values.csv')
