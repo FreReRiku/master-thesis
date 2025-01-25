@@ -24,6 +24,8 @@ def gcc_phat(music_type):
 
     # 音源の選択
     music_type      = music_type
+    # ゼロ除算回避定数 (const)
+    epsilon = 1e-20
     # サンプリング周波数 [Hz]
     sampling_rate   = 44100
     # 音速 [m/s]
@@ -84,8 +86,6 @@ def gcc_phat(music_type):
     # -位相の設定-----
     # embedding_phase  = 0
 
-    # ゼロ除算回避定数 (const)
-    epsilon = 1e-20
 
     # データ格納用リストの初期化
     delay_time_errors = []                  # 遅延推定誤差記録用
