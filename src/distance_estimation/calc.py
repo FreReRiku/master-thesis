@@ -335,128 +335,191 @@ def gcc_phat(music_type):
             # 4th: 振幅変調と位相変調
             # ------------------------------
             # 振幅変調: 選択された周波数成分に対して振幅を変更
-            embedded_y1spec[embedded_frequencies, :] = amplitude_gain * embedded_y1spec[embedded_frequencies, :]        # embedded_freqの周波数ビンにamp倍
-            # 位相変調: 選択された周波数成分に対して位相を変更
-            # phase_shift = embedding_phase / 180 * np.pi
-            # embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
-            # print(f'Y1emb shape: {y1emb.shape}')
+            # - 埋め込み対象の周波数ビンに指定した振幅ゲイン (amplitude_gain) を適用
+            embedded_y1spec[embedded_frequencies, :] = amplitude_gain * embedded_y1spec[embedded_frequencies, :]
             
-            # 音質検査用の振幅変調 (埋め込み用の配列に適用)
+            # 位相変調: 選択された周波数成分の位相を調整 (現在は無効)
+            # - 位相変調を適用する場合はコメントを解除してください
+            # phase_shift = embedding_phase / 180 * np.pi       # 度単位の位相シフトをラジアンに変換
+            # embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
+            
+            # 音質検査用の振幅変調
+            # - 埋め込み対象の配列 (y1zero) に対して振幅ゲインを適用
             y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = amplitude_gain * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
             
             # ------------------------------
             # 5th: CSP2を求める
             # ------------------------------
-            # 埋め込み信号を利用している(embedded_y1spec)
+            # 埋め込み信号を利用
+            # - スピーカーS1の埋め込みスペクトログラムとスピーカーS2のスペクトログラムを作成
             yspec   = embedded_y1spec + y2spec
-            # 相互スペクトラム (クロススペクトラム) の計算
+            
+            # クロススペクトラムを計算
+            # - 埋め込み信号と音源信号の周波数領域での相関を取得
             cross_spectrum_csp2 = yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
+            
             # クロススペクトラムの振幅を計算
-            # - 
+            # - 各周波数成分のエネルギーの絶対値を取得
             cross_spectrum_magnitude_csp2 = np.abs(cross_spectrum_csp2)
+            
             # 振幅がゼロに近い場合のゼロ除算を回避するための調整
+            # - 振幅がepsilon未満の場合にepsilonで置き換え
             cross_spectrum_magnitude_csp2[cross_spectrum_magnitude_csp2 < epsilon] = epsilon
-            # 白色化相互スペクトラム (周波数領域)
+            
+            # 白色化相互スペクトラム (CSP2) を計算
+            # - クロススペクトラムを振幅で正規化
             csp2_spectral = cross_spectrum_csp2 / cross_spectrum_magnitude_csp2
+            
             # 周波数領域のCSP2を時間方向で平均
+            # - 各フレームのスペクトルを時間方向に統合
             csp2_average_spectral = np.mean(csp2_spectral, axis=1)
+            
             # 周波数領域から時間領域へ変換 (逆STFT)
+            # - 時間領域信号に変換することで到来時間情報を取得
             csp2_time_domain      = irfft(csp2_average_spectral, axis=0)
             
             # -CSP2の整形-----
-            # いらない後半部を除去
+            # 不要な後半部を除去 (フレーム長に合わせてトリミング)
             csp2_time_domain     = csp2_time_domain[:frame_length]
-            # 最大で割り算
+            
+            # 最大値で正規化
+            # - 最大値を1とするスケール調整
             csp2_time_domain     = csp2_time_domain / np.max(csp2_time_domain)
             
             
-            # ------------------------------
+            # --------------------------------
             # 6th: 埋め込み周波数のみのCSP2を求める
-            # ------------------------------
-            # csp2_average_spectralと同じ形状の配列を作成し, 全ての値を0に初期化
+            # --------------------------------
+            
+            # CSP2の埋め込み用スペクトルを初期化 (全て0)
+            # - csp2_average_spectral と同じ形状
             csp2_embedded_spectral = np.zeros_like(csp2_average_spectral)
-            # 選択された周波数成分 (embedded_frequencies) のみをコピー
+            
+            # 選択された周波数成分のみをコピー
+            # - 埋め込み周波数 (embedded_frequencies) の値を抽出
             csp2_embedded_spectral[embedded_frequencies] = csp2_average_spectral[embedded_frequencies]
-            # 特定の周波数成分だけを含む信号を時間領域に変換する
+            
+            # 埋め込み周波数のみの信号を時間領域に変換 (逆STFT)
             csp2_embedded_time_domain = irfft(csp2_embedded_spectral, axis=0)
             
             # -CSP2(埋込周波数のみ)の整形-----
-            # 不要な後半部を除去
+            # 不要な後半部を除去 (フレーム長に合わせてトリミング)
             csp2_embedded_time_domain = csp2_embedded_time_domain[:frame_length]
             # 最大値で正規化
+            # - 最大値を1とするスケール調整
             csp2_embedded_time_domain = csp2_embedded_time_domain / np.max(csp2_embedded_time_domain)
             
             # ------------------------------
             # 7th: 重み付き差分CSPを求める
             # ------------------------------
+            
             # -重みを計算する-----
             # CSP1のピーク位置を計算
+            # - 信号内で特に目立つピーク位置を検出
             csp1_peak_positions, _ = find_peaks(csp1_time_domain, threshold=0.01)
+            
             # ピーク位置をピークの大きい順にソート
+            # - 検出されたピークを振幅が高い順に並べ替え
             sorted_peak_indices    = np.argsort(-csp1_time_domain[csp1_peak_positions])
+            
             # 最大embedding_frequency_bins個のピーク位置を取得
+            # - 埋め込み対象とするピークを指定した数だけ選択
             selected_peak_positions = csp1_peak_positions[sorted_peak_indices[:embedding_frequency_bins]]
+            
             # 第1スピーカーの遅延推定 (最大ピーク位置)
+            # - 最も大きなピークを第1スピーカーの遅延として仮定
             primary_speaker_delay = selected_peak_positions[0]
             
             # -重みの計算-----
+            # 重み配列を初期化 (CSP1のコピー)
             csp1_weights      = np.copy(csp1_time_domain)
+            
             # 推定した第1スピーカーのピーク付近の値を0に設定
+            # - 第1スピーカーのピークの影響を除去
             csp1_weights[primary_speaker_delay - 3: primary_speaker_delay + 3] = 0
+            
             # 閾値以下の値を0に設定
+            # - ノイズや小さなピークを除去
             csp1_weights[csp1_weights < threshold_ratio] = 0
+            
             # 重みを正規化
+            # - 最大値を1とするようスケールを調整
             csp1_weights = csp1_weights / np.max(np.abs(csp1_weights))
             
             # ------------------------------
             # 8th: 重み付け差分CSPによる遅延推定
             # ------------------------------
+            
             # CSPの差分
+            # - CSP1 (スピーカーS1) と CSP2 (スピーカーS2) の差分を計算
             csp_difference = csp1_time_domain - csp2_time_domain
+            
             # 差分CSPを正規化
+            # - 最大値を1とするスケール調整
             normalized_csp_difference = csp_difference / np.max(csp_difference)
             
             # 重み付け差分CSP
+            # - 重みを適用してスピーカーS1の影響を強調
             weighted_csp_difference = csp1_weights * normalized_csp_difference
             
             # ------------------------------
             # 9th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
             # ------------------------------
+            
             # 埋め込み周波数成分を含むCSP1のピーク位置を計算
+            # - CSP1 の埋め込み対象周波数に特化したピーク検出
             embedded_csp1_peak_positions, _ = find_peaks(csp1_embedded_time_domain, threshold=0.01)
+            
             # ピーク位置をピークの大きい順にソート
+            # - 検出されたピークを振幅が高い順に並べ替え
             sorted_embedded_peak_indices = np.argsort(-csp1_embedded_time_domain[embedded_csp1_peak_positions])
+            
             # 最大embedding_frequency_bins個のピーク位置を取得
+            # - 埋め込み対象とするピークを指定した数だけ選択
             selected_embedded_peak_positions = embedded_csp1_peak_positions[sorted_embedded_peak_indices[:embedding_frequency_bins]]
+            
             # 第1スピーカーの遅延推定 (最大ピーク位置)
+            # - 埋め込み周波数に限定して最大のピークを遅延として仮定
             primary_embedded_speaker_delay = selected_embedded_peak_positions[0]
             
             # 重みの計算
+            # - 埋め込み周波数成分の重みを初期化 (CSP1の埋め込み版)
             embedded_csp1_weights = np.copy(csp1_embedded_time_domain)
+            
             # 推定した第1スピーカーのピーク付近の値を0に設定
             embedded_csp1_weights[primary_embedded_speaker_delay - 3 : primary_embedded_speaker_delay + 3] = 0
+            
             # 閾値以下の値を0に設定
+            # - ノイズや小さなピークを除去
             embedded_csp1_weights[embedded_csp1_weights < threshold_ratio] = 0
             # 重みを正規化
+            # - 最大値を1とするスケール調整
             embedded_csp1_weights = embedded_csp1_weights / np.max(np.abs(embedded_csp1_weights))
             
-            # ------------------------------
+            # --------------------------------------------
             # 10th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
-            # ------------------------------
+            # --------------------------------------------
+            
             # 埋め込み周波数におけるCSPの差分
+            # - 埋め込み対象周波数のCSP1とCSP2の差分を計算
             embedded_csp_difference = csp1_embedded_time_domain - csp2_embedded_time_domain
+            
             # 差分CSPを正規化
+            # - 最大値を1とするスケール調整
             normalized_embedded_csp_difference = embedded_csp_difference / np.max(embedded_csp_difference)
             
             # 重み付け埋込差分CSP
+            # - 重みを適用して主スピーカーの影響を強調
             weighted_embedded_csp_difference = csp1_weights * normalized_embedded_csp_difference
             
             # ------------------------------
             # 11th: 計算結果を保存する
             # ------------------------------
+            # 計算された各種データをリストに追加
+            # - CSP1とCSP2の時間領域信号, 埋め込み対象周波数, 差分CSP, 重み付け差分CSPなど
             csp1_values.append(csp1_time_domain)                                        # CSP1
             csp2_values.append(csp2_time_domain)                                        # CSP2
-            store_embedded_frequencies.append(embedded_frequencies)
+            store_embedded_frequencies.append(embedded_frequencies)                     # 埋め込み対象周波数
             embedded_freq_csp1_values.append(csp1_embedded_time_domain)                 # 特定の周波数成分だけを抽出したCSP1
             embedded_freq_csp2_values.append(csp2_embedded_time_domain)                 # 特定の周波数成分だけを抽出したCSP2
             csp_difference_values.append(normalized_csp_difference)                     # 差分CSP
@@ -465,6 +528,7 @@ def gcc_phat(music_type):
             embedded_freq_weighted_csp_values.append(weighted_embedded_csp_difference)  # 特定の周波数成分だけを抽出した重み付け差分CSP
         
         # numpyに変更
+        # - リスト形式からnumpy配列に変換し, 後続の処理で扱いやすくする
         first_detected_peak_positions       = np.array(first_detected_peak_positions)
         delay_adjusted_peak_positions       = np.array(delay_adjusted_peak_positions)
         store_embedded_frequencies          = np.array(store_embedded_frequencies)
@@ -481,95 +545,120 @@ def gcc_phat(music_type):
         # 12th: 遅延量を求める
         # ------------------------------
         
-        # csp1_valuesとembedded_freq_weighted_csp_valuesに基づいて, 各遅延量(delay1, delay2)を推定し,
-        # その結果をリスト delays に格納する.
+        # 各スピーカーの遅延量 (delay1, delay2) を推定し, リストに保存
         delays = []
         for csp1_signal, csp2_signal in zip(csp1_values, embedded_freq_weighted_csp_values):
             
             # CSP1における最初のピーク位置を取得
+            # - 第1スピーカーの遅延を示すピークを推定
             csp1_peaks, _ = find_peaks(csp1_signal, height=0.7)
             first_csp1_peak_position = csp1_peaks[0]    # 最初に検出されたピーク位置
             
             # CSP2の最大値の位置を取得
+            # - 第2スピーカーの遅延を示すピークを推定
             csp2_peak_position = np.argmax(csp2_signal)
             
             # 遅延量 (delay1, delay2) を配列として格納
+            # - 推定された各スピーカーの遅延量を保存
             delay_pair = np.array([first_csp1_peak_position, csp2_peak_position])
             delays.append(delay_pair)
         
-        # リストをnumpy配列に変換
+        # numpy配列に変更
+        # - リスト形式からnumpy配列に変換し, 後続の処理で扱いやすくする
         delays = np.array(delays)
         
         # 遅延推定誤差を計算する (平均絶対誤差)
         delay_errors = []
         for estimated_delay_pair in delays:
             # 推定された遅延量と基準値 (delay_adjusted_peak_positions) の差を計算
+            # - 推定結果が基準値からどれだけずれているかを計算
             error_direct = np.sum(np.abs(estimated_delay_pair - delay_adjusted_peak_positions))
+            
             # 遅延推定ペアの順序が逆の場合の誤差を計算
+            # - 順序が異なる場合の誤差も考慮
             error_flipped = np.sum(np.abs(np.flip(estimated_delay_pair) - delay_adjusted_peak_positions))
+            
             # 最小の誤差を選択してリストに追加
+            # - 順序が正しい場合と逆の場合で小さい方を採用
             delay_errors.append(np.min([error_direct, error_flipped]))
+        
         # 遅延誤差の平均値を計算
+        # - 全ての試行における誤差の平均値を算出
         delay_error_mean = np.mean(np.array(delay_errors))
+        
         # サンプル単位の誤差を時間単位 (ミリ秒) に変換
+        # - サンプル単位の誤差を時間単位にして解釈しやすくする
         mean_delay_error_ms = 1000 * (delay_error_mean / sampling_rate)
+        
         # 結果をリストに保存
+        # - 遅延推定誤差を蓄積
         delay_time_errors.append(mean_delay_error_ms)
         
-        # --------------------
-        # 13th: Peak Ratioを計算する
-        # --------------------
+        # ------------------------
+        # 13th: ピーク比を計算する
+        # ------------------------
+        
+        # ピーク比 (Peak Ratio) を計算し, 各試行ごとにリストに保存
         peak_ratios = []
         
         for csp2_signal, estimated_delay_pair in zip(embedded_freq_weighted_csp_values, delays):
             # CSP1が第1スピーカーと第2スピーカーどちらの遅延を検知したか判定
-            # 判定結果を真の遅延位置 (true_delay_position) として保存
+            # - 推定された遅延量と基準値を比較し, 正しい遅延位置を特定
             if np.abs(estimated_delay_pair[0] - delay_adjusted_peak_positions[0]) < np.abs(estimated_delay_pair[0] - delay_adjusted_peak_positions[1]):
-                true_delay_position = delay_adjusted_peak_positions[1]  # csp2はスピーカー2を推定したと判定
+                true_delay_position = delay_adjusted_peak_positions[1]  # スピーカーS2からの遅延と推定
             else:
-                true_delay_position = delay_adjusted_peak_positions[0]  # csp2はスピーカー1を推定したと判定
+                true_delay_position = delay_adjusted_peak_positions[0]  # スピーカーS1からの遅延と推定
             
             # 真の遅延位置におけるピーク振幅を取得
+            # - 遅延位置に対応するCSP2信号の振幅を取得
             true_peak_amplitude = csp2_signal[true_delay_position]
             
-            # 真の遅延位置以外での最大ピーク振幅を取得 (真の遅延位置をゼロにし, その次に大きい振幅を保存することで, 2番目に大きい振幅を得ている)
+            # 真の遅延位置以外での最大ピーク振幅を取得
+            # - 真の遅延位置をゼロにして次に大きいピークを取得
             csp2_signal_copy = np.copy(csp2_signal)
-            csp2_signal_copy[true_delay_position] = 0   # 真の遅延位置をゼロに設定
+            csp2_signal_copy[true_delay_position] = 0
             secondary_peak_amplitude = np.max(csp2_signal_copy)
             
-            # Peak Ratioを計算し, リストに保存
+            # ピーク比を計算し, リストに保存
+            # - 主ピークの振幅を2番目に大きいピークの振幅で割る
             peak_ratios.append(true_peak_amplitude / (np.max([secondary_peak_amplitude, 1e-8])))
         
         # リストをnumpy配列に変換
+        # - 計算結果を配列形式で保存
         peak_ratios = np.array(peak_ratios)
         
         # ------------------------------
         # 14th: 音質評価 (PESQとSNR)
         # ------------------------------
         
-        # ISTFTを用いて時間波形に変換
+        # ISTFTを用いて時間波形に変換a
+        # - スペクトログラムから時間波形領域を再構築
         num_frames  = min([y1spec.shape[1], y1zero.shape[1]])
         original_waveform = istft(y1spec[:,:num_frames], hop_length=hop_length)
         embedded_waveform = istft(y1zero[:,:num_frames], hop_length=hop_length)
         
         # PESQ (音質スコア) の計算
+        # - 元波形と埋め込み波形を16kHzにダウンサンプリングして評価
         original_waveform_downsampled = resample(original_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
         embedded_waveform_downsampled = resample(embedded_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
         pesq_score = pesq(16000, original_waveform_downsampled, embedded_waveform_downsampled)
         pesq_scores.append(pesq_score)
         
         # SNR (信号対雑音比) の計算
+        # - 元波形と埋め込み波形の差を基にSNRを算出
         signal_power = sum(original_waveform ** 2)
         noise_power  = sum((original_waveform - embedded_waveform) ** 2)
         snr = 20 * np.log10(signal_power / noise_power)
         
-        # 生成された音源の作成
+        # 生成された音源の保存
+        # - 埋め込み強度を含むファイル名で波形を保存
         sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embedded_music{music_type}_gain{amplitude_gain:.2f}.wav', embedded_waveform, sampling_rate)
         
-        # 確認用の表示
+        # 確認用の進捗表示
         print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
     
     # numpy配列に変換
+    # - 遅延推定誤差と音質スコアを配列形式で保存
     delay_time_errors = np.array(delay_time_errors)
     pesq_scores = np.array(pesq_scores)
     
@@ -579,9 +668,11 @@ def gcc_phat(music_type):
     # ------------------------------
     
     # 保存するCSVファイルのパス
+    # - 計算結果を出力するフォルダを指定
     output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data'
     
     # リストをCSV形式で書き出し
+    # - 計算されたデータをそれぞれのファイルに保存
     save.to_csv(x_0, f'music{music_type}_mono_trimmed', f'{output_path}/music{music_type}_mono_trimmed.csv')
     save.to_csv(impulse, 'impulse', f'{output_path}/impulse.csv')
     save.to_csv(first_detected_peak_positions, 'first_detected_peak_positions', f'{output_path}/first_detected_peak_positions.csv')
