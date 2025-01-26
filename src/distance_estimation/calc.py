@@ -21,12 +21,12 @@ def gcc_phat(music_type):
     GCC-PHATを用いた到来時間差推定(TDoA推定)のメイン関数.
     - 音源の種類に応じてパラメータを設定し, 結果を保存.
     """
-
+    
     # ------------------------------
     # 1st: パラメータの設定
     # ------------------------------
-
-    # 音源タイプの指定 (1: エレクトロ, 2: クラシック)
+    
+    # 音源タイプの指定
     music_type      = music_type
     
     # 極小値をゼロ除算防止のために使用
@@ -78,211 +78,259 @@ def gcc_phat(music_type):
         ["Embedding frequency bins [bin]", "Total frequency bins [bin]", "Frames per trial", "Number of trials"],
         [f"{embedding_frequency_bins}", f"{frame_length + 1}", f"{num_embedding_frames}", f"{len(pos_st_frame)}"]
     ]
-
+    
     # パラメーターを保存するCSVファイルのバス
     setting_parameters_csv_file = f"./../../data/distance_estimation/music{music_type}_mono/csv_files/logs/setting_parameters.csv"
-
+    
     # CSVファイルへの書き込み処理
     with open(setting_parameters_csv_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerows(setting_parameters_data)
-
+    
     # ----------------
     # 埋め込み設定
     # ----------------
-
+    
     # 埋め込み振幅の設定
     # 埋め込み処理の試行回数を定義 (振幅を段階的に変化させてテスト)
     loop_times = 25     # 振幅を25段階に設定
-
+    
     # 埋め込み振幅の値 (0 から 1 まで均等に分割した値)
     embedding_amplitudes    = np.linspace(0, 1, loop_times)
-
+    
     # 埋め込む位相の設定 (現在未使用)
     # embedding_phase  = 0  # 必要に応じて位相変化を追加可能
-
+    
     # --------------------
     # データ格納用のリスト
     # --------------------
-
+    
     # 遅延推定誤差を記録するリスト
     delay_time_errors = []  # 指定された遅延量と真値の誤差を格納
     
     # 音質評価 (PESQスコア) を記録するリスト
     pesq_scores = []        # 埋め込み処理後の音質評価スコア
-
+    
     for num, amplitude_gain in enumerate(embedding_amplitudes):
-
+        
         # ------------------------------
         # オーディオファイルの読み込み
         # ------------------------------
-    
+        
         # ファイルパスの指定
         file_name_impulse1       = f'./../../sound/room_simulation/impulse_signal_ch1_{sampling_rate}Hz.wav'
         file_name_impulse2       = f'./../../sound/room_simulation/impulse_signal_ch2_{sampling_rate}Hz.wav'
         file_name_original       = f'./../../sound/original/music{music_type}_mono.wav'
         file_name_speaker1       = f'./../../sound/room_simulation/music{music_type}_room_ch1_{sampling_rate}Hz.wav'
         file_name_speaker2       = f'./../../sound/room_simulation/music{music_type}_room_ch2_{sampling_rate}Hz.wav'
-    
+        
         # オーディオデータをファイルから読み込み
         impulse1, _ = sf.read(file_name_impulse1)
         impulse2, _ = sf.read(file_name_impulse2)
         x, _        = sf.read(file_name_original)
         y1, _       = sf.read(file_name_speaker1)
         y2, _       = sf.read(file_name_speaker2)
-
+        
         # ------------------------------
         # オーディオファイルの編集
         # ------------------------------
-
+        
         # インパルス応答 (チャンネル1と2の合成) を生成
         impulse = impulse1[:2500] + impulse2[:2500]  # 各インパルス応答を2500サンプルでトリミング後, 足し合わせ
-    
+        
         # 各オーディオ信号を指定した範囲でトリミング
         x_0     = x[start_sample:end_sample]  # オリジナル音源のトリミング範囲
         y1_0    = y1[start_sample:end_sample]  # スピーカーS1から収録した音のトリミング範囲
         y2_0    = y2[start_sample:end_sample]  # スピーカーS2から収録した音のトリミング範囲
-
+        
         # STFT (短時間フーリエ変換) によりスペクトログラムを生成
         xspec       = stft(x_0,  n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
         y1spec      = stft(y1_0, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
         y2spec      = stft(y2_0, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
         y1zero      = stft(y1,   n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
-
+        
         # ------------------------------
         # データ格納用のリストの初期化
         # ------------------------------
-    
+        
         # 各スピーカーとの距離・到来時間に関するデータを記録するリスト
         distance_speaker1 = []  # スピーカーS1とマイク間の距離・到来時間の記録用
         distance_speaker2 = []  # スピーカーS2とマイク間の距離・到来時間の記録用
-
+        
         # 埋め込まれた周波数に関する情報を記録するリスト
         store_embedded_frequencies = [] # 埋め込まれた周波数を記録
-
+        
         # 各CSP (Cross-power Spectrum Phase) の計算結果を記録するリスト
         csp0_values = []    # 初期のCSP (基準)
         csp1_values = []    # スピーカーS1に基づくCSP
         csp2_values = []    # スピーカーS2に基づくCSP
-
+        
         # 埋め込み周波数成分に基づくCSPの計算結果を記録するリスト
         embedded_freq_csp1_values = []  # スピーカーS1 (埋め込み周波数のみ)
         embedded_freq_csp2_values = []  # スピーカーS2 (埋め込み周波数のみ)
-
+        
         # CSP間の差分に基づくデータを記録するリスト
         csp_difference_values = []              # CSPの差分
         weighted_csp_difference_values = []     # 重み付けされたCSPの差分
         embedded_freq_csp_difference = []       # 埋め込み周波数のみのCSP差分
         embedded_freq_weighted_csp_values = []  # 埋め込み周波数のみの重み付けCSP
-
-
+        
+        
         # ------------------------------
         # 1st: CSP0, d_0 の推定
         # ------------------------------
         for frame_start_index in pos_st_frame:
             
-            # マイク入力音声のスペクトログラム(スペクトログラムの合成)
+            # マイク入力音声のスペクトログラムを合成
+            # - スピーカーS1及びS2からの信号を足し合わせたスペクトログラム
             yspec = y1spec + y2spec
-        
+            
             # --CSP0を求める(GCC-PHAT法)----------
             # クロススペクトラムの計算
+            # - マイク信号と音源信号の周波数領域での相関を計算
             cross_spectrum_csp0 = yspec[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(xspec[:, frame_start_index:frame_start_index+num_embedding_frames])
+            
             # クロススペクトラムの振幅を計算
+            # - 周波数ごとのエネルギーの絶対値を取得
             cross_spectrum_magnitude_csp0 = np.abs(cross_spectrum_csp0)
-            # 振幅がゼロに近い場合のゼロ除算を回避するための調整
+            
+            # 振幅がゼロに近い場合のゼロ除算を回避
+            # - 振幅がepsilon未満の場合にepsilonで置き換え
             cross_spectrum_magnitude_csp0[cross_spectrum_magnitude_csp0  < epsilon] = epsilon
-            # 白色化相互スペクトル (周波数領域)
+            
+            # 白色化相互スペクトル (CSP) を計算
+            # - クロススペクトラムを振幅で正規化
             csp0_spectral = cross_spectrum_csp0 / cross_spectrum_magnitude_csp0
+            
             # 周波数領域のCSP0を時間方向で平均
+            # - 各フレームのスペクトルを時間方向に統合
             csp0_average_spectral = np.mean(csp0_spectral, axis=1)
+            
             # 周波数領域から時間領域へ変換 (逆STFT)
+            # - 時間領域信号に変換することで到来時間情報を取得
             csp0_time_domain = irfft(csp0_average_spectral, axis=0)
-        
+            
             # -CSP0の整形-----
-            # 不要な後半部を除去
+            # 不要な後半部を除去 (フレーム長に合わせてトリミング)
             csp0_time_domain = csp0_time_domain[:frame_length]
+            
             # 最大値で正規化
+            # - 最大値を1とするスケール調整
             csp0_time_domain = csp0_time_domain / np.max(csp0_time_domain)
-        
+            
             # -CSP0の保存-----
+            # - 後の処理で利用するためリストに保存
             csp0_values.append(csp0_time_domain)
-        
-            # -dを推定-----
+            
+            # -d_0 を推定-----
+            # 最大値の位置 (遅延時間) を推定
             # 注: 現在のオフセット値(25)を動的に調整する仕組みが必要
             estimated_delay = (np.argmax(csp0_values)-25)
-
-        # print(estimated_delay)
-        # --インパルスのピーク位置の推定----------
-
-        first_detected_peak_positions = []      # 最初に検出されたインパルス応答のピーク位置の記録用
-        delay_adjusted_peak_positions = []      # 遅延時間を除いたインパルス応答ピークの記録用
-
-        # find_peaks関数を用いて、ピークを推定・記録
+        
+        # ------------------------------
+        # インパルスのピーク位置の推定
+        # ------------------------------
+        
+        # 初期化: インパルス応答のピーク位置を記録するリスト
+        first_detected_peak_positions = []      # 最初に検出されたピーク位置
+        delay_adjusted_peak_positions = []      # 推定遅延を調整後のピーク位置
+        
+        # インパルス応答におけるピークの検出
         for impulse_response in [impulse1, impulse2]:
-            # find_peaks関数を使って, ピークを推定・記録
-            peak_positions, _ = find_peaks(impulse_response, height=0.6)                # height: ピーク検出の閾値
-            first_detected_peak_positions.append(peak_positions[0])                     # 最初のピークを記録
-            delay_adjusted_peak_positions.append(peak_positions[0]-estimated_delay)     # 遅延時間を調整
-    
-        # 遅延時間を考慮して音声信号をトリミング
+            # ピーク位置を検出 (高さの閾値: 0.6)
+            peak_positions, _ = find_peaks(impulse_response, height=0.6)
+            
+            # 最初のピーク位置を記録
+            first_detected_peak_positions.append(peak_positions[0])
+            
+            # 推定された遅延を調整後のピーク位置を記録
+            delay_adjusted_peak_positions.append(peak_positions[0]-estimated_delay)
+        
+        # ------------------------------
+        # 遅延時間を考慮して信号をトリミング
+        # ------------------------------
+        
+        # 推定遅延時間 (d_0) を考慮してオリジナル音源をトリミング
         x = x[start_sample-estimated_delay : end_sample-estimated_delay]
-    
-        # 遅延時間を考慮したスペクトログラムを生成
+        
+        # トリミング後の音源を基にスペクトログラムを再生成
+        # - 遅延時間を考慮した状態でSTFTを計算
         xspec = stft(x, n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
         
-        
         for frame_start_index in pos_st_frame:
-        
-            # 埋め込み用の配列
+            
+            # 埋め込み用の配列を初期化
+            # - スピーカーS1のスペクトログラムをコピーして埋め込み操作用に利用
             embedded_y1spec   = np.copy(y1spec)
-        
-            # マイク入力音声のスペクトログラム (スペクトログラムの合成)
+            
+            # マイク入力音声のスペクトログラムを合成
+            # - スピーカーS1とS2の信号を足し合わせたスペクトログラム
             yspec       = y1spec + y2spec
-        
+            
             # ------------------------------
             # 2nd: CSP1を求める
             # ------------------------------
-            # クロススペクトラムの計算
+            # クロススペクトラムを計算
+            # - スピーカーの合成信号とオリジナル音源の周波数領域での相関
             cross_spectrum_csp1 = yspec[:, frame_start_index:frame_start_index+num_embedding_frames] * np.conj(xspec[:, frame_start_index:frame_start_index+num_embedding_frames])
+            
             # クロススペクトラムの振幅を計算
+            # - 各周波数成分のエネルギーの絶対値を取得
             cross_spectrum_magnitude_csp1 = np.abs(cross_spectrum_csp1)
+            
             # 振幅がゼロに近い場合のゼロ除算を回避するための調整
+            # - 振幅がepsilon未満の場合にepsilonで置き換え
             cross_spectrum_magnitude_csp1[cross_spectrum_magnitude_csp1 < epsilon] = epsilon
+            
             # 白色化相互スペクトラム (周波数領域)
+            # - クロススペクトラムを振幅で正規化
             csp1_spectral = cross_spectrum_csp1 / cross_spectrum_magnitude_csp1
+            
             # 周波数領域のCSP1を時間方向で平均
+            # - 各フレームのスペクトルを時間方向に統合
             csp1_average_spectral   = np.mean(csp1_spectral, axis=1)
+            
             # 周波数領域から時間領域へ変換 (逆STFT)
+            # - 時間領域信号に変換することで到来時間情報を取得
             csp1_time_domain     = irfft(csp1_average_spectral, axis=0)
+            
             # -CSP1の整形-----
-            # 不要な後半部を除去
+            # 不要な後半部を除去 (フレーム長に合わせてトリミング)
             csp1_time_domain     = csp1_time_domain[:frame_length]
+            
             # 最大値で正規化
+            # - 最大値を1とするスケール調整
             csp1_time_domain     = csp1_time_domain / np.max(csp1_time_domain)
-        
-            # ------------------------------
+            
+            # --------------------------------
             # 3rd: 埋め込み周波数のみのCSP1を求める
-            # ------------------------------
+            # --------------------------------
+            
             # --ゼロ埋め込み周波数の決定----------
-            # 振幅(周波数?)の大きい順にインデックスを取得
+            # 振幅の大きい順に周波数インデックスを取得
             sorted_frequency_indices    = np.argsort(-np.abs(csp1_average_spectral))
-            # CSPの最大embedding_frequency_bins個の周波数
+            
+            # CSPの最大embedding_frequency_bins個の周波数を選択
             embedded_frequencies        = sorted_frequency_indices[:embedding_frequency_bins]
-        
+            
             # --埋め込み周波数のみのCSP1を求める----------
-            # CSP1と同じ形状の配列を作成し, 全ての値を0に初期化
+            # CSP1と同じ形状の配列を初期化 (全て0)
             csp1_embedded_spectral      = np.zeros_like(csp1_average_spectral)
-            # 選択された周波数成分だけをコピー
+            
+            # 選択された周波数成分のみをコピー
             csp1_embedded_spectral[embedded_frequencies] = csp1_average_spectral[embedded_frequencies]
+            
             # 特定の周波数成分だけを含む信号を時間領域に変換 (逆STFT)
             csp1_embedded_time_domain   = irfft(csp1_embedded_spectral, axis=0)
-        
+            
             # -埋め込み周波数のみのCSP1の整形-----
-            # 不要な後半部を削除
+            # 不要な後半部を削除 (フレーム長に合わせてトリミング)
             csp1_embedded_time_domain   = csp1_embedded_time_domain[:frame_length]
+            
             # 最大値で正規化
+            # - 最大値を1とするスケール調整
             csp1_embedded_time_domain   = csp1_embedded_time_domain / np.max(csp1_embedded_time_domain)
-        
+            
             # ------------------------------
             # 4th: 振幅変調と位相変調
             # ------------------------------
@@ -292,10 +340,10 @@ def gcc_phat(music_type):
             # phase_shift = embedding_phase / 180 * np.pi
             # embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
             # print(f'Y1emb shape: {y1emb.shape}')
-        
+            
             # 音質検査用の振幅変調 (埋め込み用の配列に適用)
             y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = amplitude_gain * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
-        
+            
             # ------------------------------
             # 5th: CSP2を求める
             # ------------------------------
@@ -304,6 +352,7 @@ def gcc_phat(music_type):
             # 相互スペクトラム (クロススペクトラム) の計算
             cross_spectrum_csp2 = yspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames] * np.conj(xspec[:, frame_start_index+num_embedding_frames:frame_start_index+2*num_embedding_frames])
             # クロススペクトラムの振幅を計算
+            # - 
             cross_spectrum_magnitude_csp2 = np.abs(cross_spectrum_csp2)
             # 振幅がゼロに近い場合のゼロ除算を回避するための調整
             cross_spectrum_magnitude_csp2[cross_spectrum_magnitude_csp2 < epsilon] = epsilon
@@ -313,14 +362,14 @@ def gcc_phat(music_type):
             csp2_average_spectral = np.mean(csp2_spectral, axis=1)
             # 周波数領域から時間領域へ変換 (逆STFT)
             csp2_time_domain      = irfft(csp2_average_spectral, axis=0)
-        
+            
             # -CSP2の整形-----
             # いらない後半部を除去
             csp2_time_domain     = csp2_time_domain[:frame_length]
             # 最大で割り算
             csp2_time_domain     = csp2_time_domain / np.max(csp2_time_domain)
-        
-        
+            
+            
             # ------------------------------
             # 6th: 埋め込み周波数のみのCSP2を求める
             # ------------------------------
@@ -330,13 +379,13 @@ def gcc_phat(music_type):
             csp2_embedded_spectral[embedded_frequencies] = csp2_average_spectral[embedded_frequencies]
             # 特定の周波数成分だけを含む信号を時間領域に変換する
             csp2_embedded_time_domain = irfft(csp2_embedded_spectral, axis=0)
-        
+            
             # -CSP2(埋込周波数のみ)の整形-----
             # 不要な後半部を除去
             csp2_embedded_time_domain = csp2_embedded_time_domain[:frame_length]
             # 最大値で正規化
             csp2_embedded_time_domain = csp2_embedded_time_domain / np.max(csp2_embedded_time_domain)
-        
+            
             # ------------------------------
             # 7th: 重み付き差分CSPを求める
             # ------------------------------
@@ -349,7 +398,7 @@ def gcc_phat(music_type):
             selected_peak_positions = csp1_peak_positions[sorted_peak_indices[:embedding_frequency_bins]]
             # 第1スピーカーの遅延推定 (最大ピーク位置)
             primary_speaker_delay = selected_peak_positions[0]
-        
+            
             # -重みの計算-----
             csp1_weights      = np.copy(csp1_time_domain)
             # 推定した第1スピーカーのピーク付近の値を0に設定
@@ -358,7 +407,7 @@ def gcc_phat(music_type):
             csp1_weights[csp1_weights < threshold_ratio] = 0
             # 重みを正規化
             csp1_weights = csp1_weights / np.max(np.abs(csp1_weights))
-        
+            
             # ------------------------------
             # 8th: 重み付け差分CSPによる遅延推定
             # ------------------------------
@@ -366,10 +415,10 @@ def gcc_phat(music_type):
             csp_difference = csp1_time_domain - csp2_time_domain
             # 差分CSPを正規化
             normalized_csp_difference = csp_difference / np.max(csp_difference)
-        
+            
             # 重み付け差分CSP
             weighted_csp_difference = csp1_weights * normalized_csp_difference
-        
+            
             # ------------------------------
             # 9th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
             # ------------------------------
@@ -381,7 +430,7 @@ def gcc_phat(music_type):
             selected_embedded_peak_positions = embedded_csp1_peak_positions[sorted_embedded_peak_indices[:embedding_frequency_bins]]
             # 第1スピーカーの遅延推定 (最大ピーク位置)
             primary_embedded_speaker_delay = selected_embedded_peak_positions[0]
-        
+            
             # 重みの計算
             embedded_csp1_weights = np.copy(csp1_embedded_time_domain)
             # 推定した第1スピーカーのピーク付近の値を0に設定
@@ -390,7 +439,7 @@ def gcc_phat(music_type):
             embedded_csp1_weights[embedded_csp1_weights < threshold_ratio] = 0
             # 重みを正規化
             embedded_csp1_weights = embedded_csp1_weights / np.max(np.abs(embedded_csp1_weights))
-        
+            
             # ------------------------------
             # 10th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
             # ------------------------------
@@ -398,10 +447,10 @@ def gcc_phat(music_type):
             embedded_csp_difference = csp1_embedded_time_domain - csp2_embedded_time_domain
             # 差分CSPを正規化
             normalized_embedded_csp_difference = embedded_csp_difference / np.max(embedded_csp_difference)
-        
+            
             # 重み付け埋込差分CSP
             weighted_embedded_csp_difference = csp1_weights * normalized_embedded_csp_difference
-        
+            
             # ------------------------------
             # 11th: 計算結果を保存する
             # ------------------------------
@@ -414,7 +463,7 @@ def gcc_phat(music_type):
             weighted_csp_difference_values.append(weighted_csp_difference)              # 重み付け差分CSP
             embedded_freq_csp_difference.append(normalized_embedded_csp_difference)     # 特定の周波数成分だけを抽出した差分CSP
             embedded_freq_weighted_csp_values.append(weighted_embedded_csp_difference)  # 特定の周波数成分だけを抽出した重み付け差分CSP
-    
+        
         # numpyに変更
         first_detected_peak_positions       = np.array(first_detected_peak_positions)
         delay_adjusted_peak_positions       = np.array(delay_adjusted_peak_positions)
@@ -427,30 +476,30 @@ def gcc_phat(music_type):
         weighted_csp_difference_values      = np.array(weighted_csp_difference_values)
         embedded_freq_csp_difference        = np.array(embedded_freq_csp_difference)
         embedded_freq_weighted_csp_values   = np.array(embedded_freq_weighted_csp_values)
-    
+        
         # ------------------------------
         # 12th: 遅延量を求める
         # ------------------------------
-    
+        
         # csp1_valuesとembedded_freq_weighted_csp_valuesに基づいて, 各遅延量(delay1, delay2)を推定し,
         # その結果をリスト delays に格納する.
         delays = []
         for csp1_signal, csp2_signal in zip(csp1_values, embedded_freq_weighted_csp_values):
-        
+            
             # CSP1における最初のピーク位置を取得
             csp1_peaks, _ = find_peaks(csp1_signal, height=0.7)
             first_csp1_peak_position = csp1_peaks[0]    # 最初に検出されたピーク位置
-        
+            
             # CSP2の最大値の位置を取得
             csp2_peak_position = np.argmax(csp2_signal)
-        
+            
             # 遅延量 (delay1, delay2) を配列として格納
             delay_pair = np.array([first_csp1_peak_position, csp2_peak_position])
             delays.append(delay_pair)
-    
+        
         # リストをnumpy配列に変換
         delays = np.array(delays)
-    
+        
         # 遅延推定誤差を計算する (平均絶対誤差)
         delay_errors = []
         for estimated_delay_pair in delays:
@@ -466,12 +515,12 @@ def gcc_phat(music_type):
         mean_delay_error_ms = 1000 * (delay_error_mean / sampling_rate)
         # 結果をリストに保存
         delay_time_errors.append(mean_delay_error_ms)
-    
+        
         # --------------------
         # 13th: Peak Ratioを計算する
         # --------------------
         peak_ratios = []
-    
+        
         for csp2_signal, estimated_delay_pair in zip(embedded_freq_weighted_csp_values, delays):
             # CSP1が第1スピーカーと第2スピーカーどちらの遅延を検知したか判定
             # 判定結果を真の遅延位置 (true_delay_position) として保存
@@ -479,30 +528,30 @@ def gcc_phat(music_type):
                 true_delay_position = delay_adjusted_peak_positions[1]  # csp2はスピーカー2を推定したと判定
             else:
                 true_delay_position = delay_adjusted_peak_positions[0]  # csp2はスピーカー1を推定したと判定
-        
+            
             # 真の遅延位置におけるピーク振幅を取得
             true_peak_amplitude = csp2_signal[true_delay_position]
-        
+            
             # 真の遅延位置以外での最大ピーク振幅を取得 (真の遅延位置をゼロにし, その次に大きい振幅を保存することで, 2番目に大きい振幅を得ている)
             csp2_signal_copy = np.copy(csp2_signal)
             csp2_signal_copy[true_delay_position] = 0   # 真の遅延位置をゼロに設定
             secondary_peak_amplitude = np.max(csp2_signal_copy)
-        
+            
             # Peak Ratioを計算し, リストに保存
             peak_ratios.append(true_peak_amplitude / (np.max([secondary_peak_amplitude, 1e-8])))
-    
+        
         # リストをnumpy配列に変換
         peak_ratios = np.array(peak_ratios)
-    
+        
         # ------------------------------
         # 14th: 音質評価 (PESQとSNR)
         # ------------------------------
-    
+        
         # ISTFTを用いて時間波形に変換
         num_frames  = min([y1spec.shape[1], y1zero.shape[1]])
         original_waveform = istft(y1spec[:,:num_frames], hop_length=hop_length)
         embedded_waveform = istft(y1zero[:,:num_frames], hop_length=hop_length)
-    
+        
         # PESQ (音質スコア) の計算
         original_waveform_downsampled = resample(original_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
         embedded_waveform_downsampled = resample(embedded_waveform[:sampling_rate * 5], orig_sr=sampling_rate, target_sr=16000)
@@ -519,16 +568,16 @@ def gcc_phat(music_type):
         
         # 確認用の表示
         print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
-
+    
     # numpy配列に変換
     delay_time_errors = np.array(delay_time_errors)
     pesq_scores = np.array(pesq_scores)
-
-
+    
+    
     # ------------------------------
     # 15th: CSV形式で計算結果を出力
     # ------------------------------
-
+    
     # 保存するCSVファイルのパス
     output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data'
     
@@ -548,5 +597,3 @@ def gcc_phat(music_type):
     save.to_csv(embedded_freq_weighted_csp_values, 'embedded_freq_weighted_csp_values', f'{output_path}/embedded_freq_weighted_csp_values.csv')
     save.to_csv(delay_time_errors, 'delay_time_errors', f'{output_path}/delay_time_errors.csv')
     save.to_csv(pesq_scores, 'pesq_scores', f'{output_path}/pesq_scores.csv')
-
-
