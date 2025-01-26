@@ -35,9 +35,6 @@ def gcc_phat(music_type):
     # 音響データのサンプリング周波数 [Hz]
     sampling_rate   = 44100
     
-    # 音速 [m/s] (屋内空気中での伝搬速度)
-    speed_of_sound  = 340.29
-    
     # シミュレーションで使用する信号のサンプル数 [サンプル数]
     signal_length_samples = 44100 * 7   # 7 秒間の信号を仮定
     
@@ -545,7 +542,7 @@ def gcc_phat(music_type):
         # 12th: 遅延量を求める
         # ------------------------------
         
-        # 各スピーカーの遅延量 (delay1, delay2) を推定し, リストに保存
+        # 各スピーカーの遅延量 (d_1, d_2) を推定し, リストに保存
         delays = []
         for csp1_signal, csp2_signal in zip(csp1_values, embedded_freq_weighted_csp_values):
             
@@ -558,7 +555,7 @@ def gcc_phat(music_type):
             # - 第2スピーカーの遅延を示すピークを推定
             csp2_peak_position = np.argmax(csp2_signal)
             
-            # 遅延量 (delay1, delay2) を配列として格納
+            # 遅延量 (d_1, d_2) を配列として格納
             # - 推定された各スピーカーの遅延量を保存
             delay_pair = np.array([first_csp1_peak_position, csp2_peak_position])
             delays.append(delay_pair)
