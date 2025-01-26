@@ -7,7 +7,6 @@ GCC-PHAT法を用いて相互相関, 並びに遅延推定を求めます.
 Created by FreReRiku on 2025/01/17
 '''
 
-import matplotlib.pyplot as plt
 import numpy as np
 import soundfile as sf
 import save
@@ -18,57 +17,72 @@ from scipy.signal import find_peaks
 from scipy.fft import irfft
 
 def gcc_phat(music_type):
+    """
+    GCC-PHATを用いた到来時間差推定(TDoA推定)のメイン関数.
+    - 音源の種類に応じてパラメータを設定し, 結果を保存.
+    """
+
     # ------------------------------
     # 1st: パラメータの設定
     # ------------------------------
 
-    # 音源の選択
+    # 音源タイプの指定 (1: エレクトロ, 2: クラシック)
     music_type      = music_type
-    # ゼロ除算回避定数 (const)
+    
+    # 極小値をゼロ除算防止のために使用
     epsilon = 1e-20
-    # サンプリング周波数 [Hz]
+    
+    # 音響データのサンプリング周波数 [Hz]
     sampling_rate   = 44100
-    # 音速 [m/s]
+    
+    # 音速 [m/s] (屋内空気中での伝搬速度)
     speed_of_sound  = 340.29
-    # サンプル長 [sample]
-    signal_length_samples   = 16000 * 18
-    # フレーム長 [sample]
-    frame_length    = 1024
-    # ホップ長 [sample]
-    hop_length      = 512
-
-    # スタートポイント [sample]
-    start_sample    = 1000
-    # エンドポイント   [sample]
-    end_sample      = start_sample + signal_length_samples
-
-    # トライアル回数 [times]
-    num_trials      = 100
-
-    # 連続して埋め込むフレーム数 [sample]
-    num_embedding_frames        = 40
-    # 埋め込み周波数のビン数 [sample]
-    embedding_frequency_bins    = np.floor(frame_length*0.1).astype(int)
-    # スタートのフレーム位置(ここからKフレーム用いる)
-    pos_st_frame = np.arange(0, num_trials*3, 3)
+    
+    # シミュレーションで使用する信号のサンプル数 [サンプル数]
+    signal_length_samples = 44100 * 7   # 7 秒間の信号を仮定
+    
+    # STFTのフレームサイズ [サンプル数]
+    frame_length    = 1024      # フレームあたりのデータポイント数
+    
+    # STFTのホップサイズ [サンプル数]
+    hop_length      = 512       # 隣接フレーム間の重なり
+    
+    # 信号をトリミングする開始点と終了点 [サンプル数]
+    start_sample    = 1000      # トリミングの開始位置
+    end_sample      = start_sample + signal_length_samples # 信号の終了位置
+    
+    # 推定を行う試行回数
+    num_trials      = 100       # 100 回のシミュレーション試行
+    
+    # 埋め込みを行うフレーム数 [フレーム数]
+    num_embedding_frames        = 40    # 連続して特定の振幅を埋め込むフレーム数
+    
+    # 埋め込みを行う周波数の範囲 (STFTフレーム内のビン数)
+    embedding_frequency_bins    = np.floor(frame_length*0.1).astype(int)    # フレーム長の10%を埋め込み対象にしている
+    # 各試行におけるフレーム開始位置
+    pos_st_frame = np.arange(0, num_trials*3, 3)    # 3 フレームごとにスタート
+    
     # frame_count = round(16000*3/16000)     # フレームカウント
     # pos_st_frame = np.arange(0, num_trials*frame_count, frame_count)
+    
     # CSPの最大値に対するノイズと判定する振幅比のしきい値(const)
-    threshold_ratio  = 0.2
-
+    threshold_ratio  = 0.2  # ピーク振幅がこの値以下の場合ノイズと判定
+    
     # --------------------------
     # 設定したパラメーターを記録
     # --------------------------
-
-    # CSV出力用データ準備
+    
+    # CSVに保存するデータを準備
     setting_parameters_data = [
-        ["設定条件"],
-        ["ゼロを埋め込む周波数ビンの数 [bin]", "合計周波数ビン数 [bin]", "一回の検知で埋め込むフレーム数", "試行回数"],
+        ["Parameter Settings"],     # パラメータ設定の見出し
+        ["Embedding frequency bins [bin]", "Total frequency bins [bin]", "Frames per trial", "Number of trials"],
         [f"{embedding_frequency_bins}", f"{frame_length + 1}", f"{num_embedding_frames}", f"{len(pos_st_frame)}"]
     ]
 
-    # CSVファイルに出力
+    # パラメーターを保存するCSVファイルのバス
     setting_parameters_csv_file = f"./../../data/distance_estimation/music{music_type}_mono/csv_files/logs/setting_parameters.csv"
+
+    # CSVファイルへの書き込み処理
     with open(setting_parameters_csv_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerows(setting_parameters_data)
@@ -77,19 +91,25 @@ def gcc_phat(music_type):
     # 埋め込み設定
     # ----------------
 
-    # -振幅の設定-----
-    # ループ回数 [times]
-    loop_times = 25
-    # 埋め込む振幅
+    # 埋め込み振幅の設定
+    # 埋め込み処理の試行回数を定義 (振幅を段階的に変化させてテスト)
+    loop_times = 25     # 振幅を25段階に設定
+
+    # 埋め込み振幅の値 (0 から 1 まで均等に分割した値)
     embedding_amplitudes    = np.linspace(0, 1, loop_times)
 
-    # -位相の設定-----
-    # embedding_phase  = 0
+    # 埋め込む位相の設定 (現在未使用)
+    # embedding_phase  = 0  # 必要に応じて位相変化を追加可能
 
+    # --------------------
+    # データ格納用のリスト
+    # --------------------
 
-    # データ格納用リストの初期化
-    delay_time_errors = []                  # 遅延推定誤差記録用
-    pesq_scores = []                        # 音質評価記録用
+    # 遅延推定誤差を記録するリスト
+    delay_time_errors = []  # 指定された遅延量と真値の誤差を格納
+    
+    # 音質評価 (PESQスコア) を記録するリスト
+    pesq_scores = []        # 埋め込み処理後の音質評価スコア
 
     for num, amplitude_gain in enumerate(embedding_amplitudes):
 
@@ -104,7 +124,7 @@ def gcc_phat(music_type):
         file_name_speaker1       = f'./../../sound/room_simulation/music{music_type}_room_ch1_{sampling_rate}Hz.wav'
         file_name_speaker2       = f'./../../sound/room_simulation/music{music_type}_room_ch2_{sampling_rate}Hz.wav'
     
-        # 読み込み
+        # オーディオデータをファイルから読み込み
         impulse1, _ = sf.read(file_name_impulse1)
         impulse2, _ = sf.read(file_name_impulse2)
         x, _        = sf.read(file_name_original)
@@ -115,33 +135,45 @@ def gcc_phat(music_type):
         # オーディオファイルの編集
         # ------------------------------
 
-        # インパルス応答の足し合わせとトリミング
-        impulse = impulse1[:2500] + impulse2[:2500]
+        # インパルス応答 (チャンネル1と2の合成) を生成
+        impulse = impulse1[:2500] + impulse2[:2500]  # 各インパルス応答を2500サンプルでトリミング後, 足し合わせ
     
-        # オーディオファイルのトリミング
-        x_0     = x[start_sample:end_sample]         # オリジナル音源
-        y1_0    = y1[start_sample:end_sample]        # スピーカーS1から収録した音源
-        y2_0    = y2[start_sample:end_sample]        # スピーカーS2から収録した音源
+        # 各オーディオ信号を指定した範囲でトリミング
+        x_0     = x[start_sample:end_sample]  # オリジナル音源のトリミング範囲
+        y1_0    = y1[start_sample:end_sample]  # スピーカーS1から収録した音のトリミング範囲
+        y2_0    = y2[start_sample:end_sample]  # スピーカーS2から収録した音のトリミング範囲
 
-        # スペクトログラム
+        # STFT (短時間フーリエ変換) によりスペクトログラムを生成
         xspec       = stft(x_0,  n_fft=2*frame_length, hop_length=hop_length, win_length=frame_length, center=False)
         y1spec      = stft(y1_0, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
         y2spec      = stft(y2_0, n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
         y1zero      = stft(y1,   n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
+
+        # ------------------------------
+        # データ格納用のリストの初期化
+        # ------------------------------
     
-        # -データ格納用のリストの初期化-----
-        distance_speaker1 = []                  # スピーカー1とマイク間の距離・到来時間の記録用
-        distance_speaker2 = []                  # スピーカー2とマイク間の距離・到来時間の記録用
-        store_embedded_frequencies = []               # 埋め込まれた周波数を記録するためのリスト
-        csp0_values = []
-        csp1_values = []
-        csp2_values = []
-        embedded_freq_csp1_values = []
-        embedded_freq_csp2_values = []
-        csp_difference_values     = []
-        weighted_csp_difference_values      = []
-        embedded_freq_csp_difference        = []
-        embedded_freq_weighted_csp_values   = []
+        # 各スピーカーとの距離・到来時間に関するデータを記録するリスト
+        distance_speaker1 = []  # スピーカーS1とマイク間の距離・到来時間の記録用
+        distance_speaker2 = []  # スピーカーS2とマイク間の距離・到来時間の記録用
+
+        # 埋め込まれた周波数に関する情報を記録するリスト
+        store_embedded_frequencies = [] # 埋め込まれた周波数を記録
+
+        # 各CSP (Cross-power Spectrum Phase) の計算結果を記録するリスト
+        csp0_values = []    # 初期のCSP (基準)
+        csp1_values = []    # スピーカーS1に基づくCSP
+        csp2_values = []    # スピーカーS2に基づくCSP
+
+        # 埋め込み周波数成分に基づくCSPの計算結果を記録するリスト
+        embedded_freq_csp1_values = []  # スピーカーS1 (埋め込み周波数のみ)
+        embedded_freq_csp2_values = []  # スピーカーS2 (埋め込み周波数のみ)
+
+        # CSP間の差分に基づくデータを記録するリスト
+        csp_difference_values = []              # CSPの差分
+        weighted_csp_difference_values = []     # 重み付けされたCSPの差分
+        embedded_freq_csp_difference = []       # 埋め込み周波数のみのCSP差分
+        embedded_freq_weighted_csp_values = []  # 埋め込み周波数のみの重み付けCSP
 
 
         # ------------------------------
