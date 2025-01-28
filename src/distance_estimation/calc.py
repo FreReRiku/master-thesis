@@ -17,13 +17,9 @@ from scipy.signal import find_peaks
 from scipy.fft import irfft
 
 def gcc_phat(music_type):
-    """
-    GCC-PHATを用いた到来時間差推定(TDoA推定)のメイン関数.
-    - 音源の種類に応じてパラメータを設定し, 結果を保存.
-    """
     
     # ------------------------------
-    # 1st: パラメータの設定
+    # 1. パラメータの設定
     # ------------------------------
     
     # 音源タイプの指定
@@ -66,7 +62,7 @@ def gcc_phat(music_type):
     threshold_ratio  = 0.2  # ピーク振幅がこの値以下の場合ノイズと判定
     
     # --------------------------
-    # 設定したパラメーターを記録
+    # 2. 設定したパラメーターを記録
     # --------------------------
     
     # CSVに保存するデータを準備
@@ -85,7 +81,7 @@ def gcc_phat(music_type):
         writer.writerows(setting_parameters_data)
     
     # ----------------
-    # 埋め込み設定
+    # 3. 埋め込み設定
     # ----------------
     
     # 埋め込み振幅の設定
@@ -99,7 +95,7 @@ def gcc_phat(music_type):
     # embedding_phase  = 0  # 必要に応じて位相変化を追加可能
     
     # --------------------
-    # データ格納用のリスト
+    # 4. データ格納用のリスト
     # --------------------
     
     # 遅延推定誤差を記録するリスト
@@ -111,7 +107,7 @@ def gcc_phat(music_type):
     for num, amplitude_gain in enumerate(embedding_amplitudes):
         
         # ------------------------------
-        # オーディオファイルの読み込み
+        # 5. オーディオファイルの読み込み
         # ------------------------------
         
         # ファイルパスの指定
@@ -129,7 +125,7 @@ def gcc_phat(music_type):
         y2, _       = sf.read(file_name_speaker2)
         
         # ------------------------------
-        # オーディオファイルの編集
+        # 6. オーディオファイルの編集
         # ------------------------------
         
         # インパルス応答 (チャンネル1と2の合成) を生成
@@ -147,7 +143,7 @@ def gcc_phat(music_type):
         y1zero      = stft(y1,   n_fft=2*frame_length, hop_length=hop_length, win_length=2*frame_length, center=False)
         
         # ------------------------------
-        # データ格納用のリストの初期化
+        # 7. データ格納用のリストの初期化
         # ------------------------------
         
         # 各スピーカーとの距離・到来時間に関するデータを記録するリスト
@@ -174,7 +170,7 @@ def gcc_phat(music_type):
         
         
         # ------------------------------
-        # 1st: CSP0, d_0 の推定
+        # 8. CSP0, d_0 の推定
         # ------------------------------
         for frame_start_index in pos_st_frame:
             
@@ -225,7 +221,7 @@ def gcc_phat(music_type):
             estimated_delay = (np.argmax(csp0_values)-25)
         
         # ------------------------------
-        # インパルスのピーク位置の推定
+        # 9. インパルスのピーク位置の推定
         # ------------------------------
         
         # 初期化: インパルス応答のピーク位置を記録するリスト
@@ -244,7 +240,7 @@ def gcc_phat(music_type):
             delay_adjusted_peak_positions.append(peak_positions[0]-estimated_delay)
         
         # ------------------------------
-        # 遅延時間を考慮して信号をトリミング
+        # 10. 遅延時間を考慮して信号をトリミング
         # ------------------------------
         
         # 推定遅延時間 (d_0) を考慮してオリジナル音源をトリミング
@@ -265,7 +261,7 @@ def gcc_phat(music_type):
             yspec       = y1spec + y2spec
             
             # ------------------------------
-            # 2nd: CSP1を求める
+            # 11. CSP1を求める
             # ------------------------------
             # クロススペクトラムを計算
             # - スピーカーの合成信号とオリジナル音源の周波数領域での相関
@@ -300,7 +296,7 @@ def gcc_phat(music_type):
             csp1_time_domain     = csp1_time_domain / np.max(csp1_time_domain)
             
             # --------------------------------
-            # 3rd: 埋め込み周波数のみのCSP1を求める
+            # 12. 埋め込み周波数のみのCSP1を求める
             # --------------------------------
             
             # --ゼロ埋め込み周波数の決定----------
@@ -329,7 +325,7 @@ def gcc_phat(music_type):
             csp1_embedded_time_domain   = csp1_embedded_time_domain / np.max(csp1_embedded_time_domain)
             
             # ------------------------------
-            # 4th: 振幅変調と位相変調
+            # 13. 振幅変調と位相変調
             # ------------------------------
             # 振幅変調: 選択された周波数成分に対して振幅を変更
             # - 埋め込み対象の周波数ビンに指定した振幅ゲイン (amplitude_gain) を適用
@@ -345,7 +341,7 @@ def gcc_phat(music_type):
             y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = amplitude_gain * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
             
             # ------------------------------
-            # 5th: CSP2を求める
+            # 14. CSP2を求める
             # ------------------------------
             # 埋め込み信号を利用
             # - スピーカーS1の埋め込みスペクトログラムとスピーカーS2のスペクトログラムを作成
@@ -385,7 +381,7 @@ def gcc_phat(music_type):
             
             
             # --------------------------------
-            # 6th: 埋め込み周波数のみのCSP2を求める
+            # 15. 埋め込み周波数のみのCSP2を求める
             # --------------------------------
             
             # CSP2の埋め込み用スペクトルを初期化 (全て0)
@@ -407,7 +403,7 @@ def gcc_phat(music_type):
             csp2_embedded_time_domain = csp2_embedded_time_domain / np.max(csp2_embedded_time_domain)
             
             # ------------------------------
-            # 7th: 重み付き差分CSPを求める
+            # 16. 重み付き差分CSPを求める
             # ------------------------------
             
             # -重みを計算する-----
@@ -444,7 +440,7 @@ def gcc_phat(music_type):
             csp1_weights = csp1_weights / np.max(np.abs(csp1_weights))
             
             # ------------------------------
-            # 8th: 重み付け差分CSPによる遅延推定
+            # 17. 重み付け差分CSPによる遅延推定
             # ------------------------------
             
             # CSPの差分
@@ -460,7 +456,7 @@ def gcc_phat(music_type):
             weighted_csp_difference = csp1_weights * normalized_csp_difference
             
             # ------------------------------
-            # 9th: 重み付け差分CSP(埋込周波数のみ)用の重み計算
+            # 18. 重み付け差分CSP(埋込周波数のみ)用の重み計算
             # ------------------------------
             
             # 埋め込み周波数成分を含むCSP1のピーク位置を計算
@@ -494,7 +490,7 @@ def gcc_phat(music_type):
             embedded_csp1_weights = embedded_csp1_weights / np.max(np.abs(embedded_csp1_weights))
             
             # --------------------------------------------
-            # 10th: 重み付け差分CSP(埋込周波数のみ)による遅延推定
+            # 19. 重み付け差分CSP(埋込周波数のみ)による遅延推定
             # --------------------------------------------
             
             # 埋め込み周波数におけるCSPの差分
@@ -510,7 +506,7 @@ def gcc_phat(music_type):
             weighted_embedded_csp_difference = csp1_weights * normalized_embedded_csp_difference
             
             # ------------------------------
-            # 11th: 計算結果を保存する
+            # 20. 計算結果を保存する
             # ------------------------------
             # 計算された各種データをリストに追加
             # - CSP1とCSP2の時間領域信号, 埋め込み対象周波数, 差分CSP, 重み付け差分CSPなど
@@ -539,7 +535,7 @@ def gcc_phat(music_type):
         embedded_freq_weighted_csp_values   = np.array(embedded_freq_weighted_csp_values)
         
         # ------------------------------
-        # 12th: 遅延量を求める
+        # 21. 遅延量を求める
         # ------------------------------
         
         # 各スピーカーの遅延量 (d_1, d_2) を推定し, リストに保存
@@ -592,7 +588,7 @@ def gcc_phat(music_type):
         delay_time_errors.append(mean_delay_error_ms)
         
         # ------------------------
-        # 13th: ピーク比を計算する
+        # 22. ピーク比を計算する
         # ------------------------
         
         # ピーク比 (Peak Ratio) を計算し, 各試行ごとにリストに保存
@@ -625,7 +621,7 @@ def gcc_phat(music_type):
         peak_ratios = np.array(peak_ratios)
         
         # ------------------------------
-        # 14th: 音質評価 (PESQとSNR)
+        # 23. 音質評価 (PESQとSNR)
         # ------------------------------
         
         # ISTFTを用いて時間波形に変換a
@@ -661,7 +657,7 @@ def gcc_phat(music_type):
     
     
     # ------------------------------
-    # 15th: CSV形式で計算結果を出力
+    # 24. CSV形式で計算結果を出力
     # ------------------------------
     
     # 保存するCSVファイルのパス
