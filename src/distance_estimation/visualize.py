@@ -29,9 +29,9 @@ def plot_embedding_error(music_type):
     """
     
     # 変数設定
-    fft_points = 1024
+    n_fft = 2048
     fs = 44100
-    time_axis = np.arange(fft_points) / fs
+    time_axis = np.arange(n_fft) / fs
 
     embedding_amplitudes = np.linspace(0, 1, 25)
     speed_of_sound=340.29
@@ -103,7 +103,7 @@ def plot_impulse(music_type):
     """
 
     # 変数設定
-    fft_points = 1024
+    fft_points = 2048
     fs = 44100
     time_axis = np.arange(fft_points) / fs
 
@@ -176,7 +176,8 @@ def plot_mean_embedded_csp(music_type):
     # 使用するCSVファイルのパスを指定
     # embedded_csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp1_values.csv'
     csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/csp1_values.csv'
-    embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp2_values.csv'
+    embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/csp2_values.csv'
+    # embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp2_values.csv'
     embedded_subtract_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp_difference.csv'
     embedded_weighted_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_weighted_csp_values.csv'
     delay_adjusted_peak_positions_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/delay_adjusted_peak_positions.csv'
