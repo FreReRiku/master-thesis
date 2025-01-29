@@ -16,7 +16,7 @@ from librosa import stft, istft, resample
 from scipy.signal import find_peaks
 from scipy.fft import irfft
 
-def gcc_phat(music_type, emb_type):
+def gcc_phat(music_type):
 
     # ------------------------------
     # 1. パラメータの設定
@@ -25,11 +25,11 @@ def gcc_phat(music_type, emb_type):
     # 音源タイプの指定
     music_type = music_type
 
-    # 埋め込みタイプの指定
-    emb_type = emb_type
-
     # 極小値をゼロ除算防止のために使用
     epsilon = 1e-20
+
+    # 音速 [m/s]
+    sound_of_speed = 340.29
 
     # 音響データのサンプリング周波数 [Hz]
     sampling_rate   = 44100
@@ -53,16 +53,19 @@ def gcc_phat(music_type, emb_type):
     start_sample    = 1000      # トリミングの開始位置
     end_sample      = start_sample + signal_length_samples # 信号の終了位置
 
-    # 推定を行う試行回数
-    num_trials      = 100       # 100 回のシミュレーション試行
+    # フレーム開始位置をずらす回数
+    num_trials      = 100       # フレーム開始位置を 100 回シフトする
 
-    # 埋め込みを行うフレーム数 [フレーム数]
+    # 埋め込みを行うフレーム数 [フレーム数] (論文では M と表記)
     num_embedding_frames        = 40    # 連続して特定の振幅を埋め込むフレーム数
 
-    # 埋め込みを行う周波数の範囲 (STFTフレーム内のビン数)
+    # 埋め込みを行う周波数の範囲 (STFTフレーム内のビン数, 論文中では L と表記)
     embedding_frequency_bins    = np.floor(frame_length*0.1).astype(int)    # フレーム長の10%を埋め込み対象にしている
+
     # 各試行におけるフレーム開始位置
-    pos_st_frame = np.arange(0, num_trials*3, 3)    # 3 フレームごとにスタート
+    # フレーム開始位置のシフトリストを作成
+    # 3フレームずつずらしながら, num_shift_count 回分を生成
+    pos_st_frame = np.arange(0, num_trials*3, 3)
 
     # frame_count = round(16000*3/16000)     # フレームカウント
     # pos_st_frame = np.arange(0, num_trials*frame_count, frame_count)
@@ -74,21 +77,6 @@ def gcc_phat(music_type, emb_type):
     # 2. 設定したパラメーターを記録
     # --------------------------
 
-    # CSVに保存するデータを準備
-    setting_parameters_data = [
-        ["Parameter Settings"],     # パラメータ設定の見出し
-        ["Embedding frequency bins [bin]", "Total frequency bins [bin]", "Frames per trial", "Number of trials"],
-        [f"{embedding_frequency_bins}", f"{frame_length + 1}", f"{num_embedding_frames}", f"{len(pos_st_frame)}"]
-    ]
-
-    # パラメーターを保存するCSVファイルのバス
-    setting_parameters_csv_file = f"./../../data/distance_estimation/music{music_type}_mono/csv_files/logs/setting_parameters.csv"
-
-    # CSVファイルへの書き込み処理
-    with open(setting_parameters_csv_file, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerows(setting_parameters_data)
-
     # ----------------
     # 3. 埋め込み設定
     # ----------------
@@ -97,7 +85,7 @@ def gcc_phat(music_type, emb_type):
     # 埋め込み処理の試行回数を定義 (振幅を段階的に変化させてテスト)
     loop_times = 25     # 振幅を25段階に設定
 
-    # 埋め込み振幅の値 (0 から 1 まで均等に分割した値)
+    # 埋め込み振幅の値 (0 から 1 まで均等に分割した値, 論文中のNを0から1に変化させている)
     embedding_amplitudes    = np.linspace(0, 1, loop_times)
 
     # 埋め込む位相の設定 (現在未使用)
@@ -672,24 +660,51 @@ def gcc_phat(music_type, emb_type):
     # 24. CSV形式で計算結果を出力
     # ------------------------------
 
-    # 保存するCSVファイルのパス
-    # - 計算結果を出力するフォルダを指定
-    output_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data'
+    # 保存先のパスを指定
+    # - ログファイル
+    logs_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/logs'
+
+    # - 計算結果
+    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data'
+
+    # ログファイルに書き込むデータ
+    # - 1_1. 設定条件
+    setting_parameters_data = [
+        ["設定条件"],     # パラメータ設定の見出し
+        ["L: 埋め込み周波数のビン数 [bin]", "合計の周波数ビン数 [bin]", "M: 埋め込みを行うフレーム数", "フレームをずらす回数"],
+        [f"{embedding_frequency_bins}", f"{frame_length + 1}", f"{num_embedding_frames}", f"{len(pos_st_frame)}"]
+    ]
+
+    # - 1_2. 書き込み処理
+    with open(f'{logs_path}/settings_parameters.csv', mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(setting_parameters_data)
+    
+    # - 2_1. スピーカー・マイク距離, 到来時間
+    distance_and_arrival_data = [
+        ["スピーカー・マイク距離, 到来時間"],     # パラメータ設定の見出し
+        ["スピーカー1_距離[m]", "スピーカー1_到来時間[ms]", "スピーカー2_距離[m]", "スピーカー2_到来時間[ms]"],
+        [f"{first_detected_peak_positions[0]/sampling_rate*sound_of_speed:.2f}", f"{1000*first_detected_peak_positions[0]/sampling_rate:.2f}", f"{first_detected_peak_positions[1]/sampling_rate*sound_of_speed:.2f}", f"{1000*first_detected_peak_positions[1]/sampling_rate:.2f}"]
+    ]
+    # - 2_2. 書き込み処理
+    with open(f'{logs_path}/distance_and_arrival.csv', mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerows(distance_and_arrival_data)
 
     # リストをCSV形式で書き出し
     # - 計算されたデータをそれぞれのファイルに保存
-    save.to_csv(x_0, f'music{music_type}_mono_trimmed', f'{output_path}/music{music_type}_mono_trimmed.csv')
-    save.to_csv(impulse, 'impulse', f'{output_path}/impulse.csv')
-    save.to_csv(first_detected_peak_positions, 'first_detected_peak_positions', f'{output_path}/first_detected_peak_positions.csv')
-    save.to_csv(delay_adjusted_peak_positions, 'delay_adjusted_peak_positions', f'{output_path}/delay_adjusted_peak_positions.csv')
-    save.to_csv(csp1_values, 'csp1_values', f'{output_path}/csp1_values.csv')
-    save.to_csv(csp2_values, 'csp2_values', f'{output_path}/csp2_values.csv')
-    save.to_csv(store_embedded_frequencies, 'embedded_frequencies', f'{output_path}/embedded_frequencies.csv')
-    save.to_csv(embedded_freq_csp1_values, 'embedded_freq_csp1_values', f'{output_path}/embedded_freq_csp1_values.csv')
-    save.to_csv(embedded_freq_csp2_values, 'embedded_freq_csp2_values', f'{output_path}/embedded_freq_csp2_values.csv')
-    save.to_csv(csp_difference_values, 'csp_difference_values', f'{output_path}/csp_difference_values.csv')
-    save.to_csv(weighted_csp_difference_values, 'weighted_csp_difference_values', f'{output_path}/weighted_csp_difference_values.csv')
-    save.to_csv(embedded_freq_csp_difference, 'embedded_freq_csp_difference', f'{output_path}/embedded_freq_csp_difference.csv')
-    save.to_csv(embedded_freq_weighted_csp_values, 'embedded_freq_weighted_csp_values', f'{output_path}/embedded_freq_weighted_csp_values.csv')
-    save.to_csv(delay_time_errors, 'delay_time_errors', f'{output_path}/delay_time_errors.csv')
-    save.to_csv(pesq_scores, 'pesq_scores', f'{output_path}/pesq_scores.csv')
+    save.to_csv(x_0, f'music{music_type}_mono_trimmed', f'{raw_data_path}/music{music_type}_mono_trimmed.csv')
+    save.to_csv(impulse, 'impulse', f'{raw_data_path}/impulse.csv')
+    save.to_csv(first_detected_peak_positions, 'first_detected_peak_positions', f'{raw_data_path}/first_detected_peak_positions.csv')
+    save.to_csv(delay_adjusted_peak_positions, 'delay_adjusted_peak_positions', f'{raw_data_path}/delay_adjusted_peak_positions.csv')
+    save.to_csv(csp1_values, 'csp1_values', f'{raw_data_path}/csp1_values.csv')
+    save.to_csv(csp2_values, 'csp2_values', f'{raw_data_path}/csp2_values.csv')
+    save.to_csv(store_embedded_frequencies, 'embedded_frequencies', f'{raw_data_path}/embedded_frequencies.csv')
+    save.to_csv(embedded_freq_csp1_values, 'embedded_freq_csp1_values', f'{raw_data_path}/embedded_freq_csp1_values.csv')
+    save.to_csv(embedded_freq_csp2_values, 'embedded_freq_csp2_values', f'{raw_data_path}/embedded_freq_csp2_values.csv')
+    save.to_csv(csp_difference_values, 'csp_difference_values', f'{raw_data_path}/csp_difference_values.csv')
+    save.to_csv(weighted_csp_difference_values, 'weighted_csp_difference_values', f'{raw_data_path}/weighted_csp_difference_values.csv')
+    save.to_csv(embedded_freq_csp_difference, 'embedded_freq_csp_difference', f'{raw_data_path}/embedded_freq_csp_difference.csv')
+    save.to_csv(embedded_freq_weighted_csp_values, 'embedded_freq_weighted_csp_values', f'{raw_data_path}/embedded_freq_weighted_csp_values.csv')
+    save.to_csv(delay_time_errors, 'delay_time_errors', f'{raw_data_path}/delay_time_errors.csv')
+    save.to_csv(pesq_scores, 'pesq_scores', f'{raw_data_path}/pesq_scores.csv')
