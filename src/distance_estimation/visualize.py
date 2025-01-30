@@ -7,6 +7,7 @@ CSVファイルを用いてグラフを作成します.
 Created by FreReRiku on 2025/01/17
 """
 
+from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -27,6 +28,11 @@ def plot_embedding_error(music_type):
     None
     
     """
+
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
     
     # 変数設定
     n_fft = 2048
@@ -76,8 +82,7 @@ def plot_embedding_error(music_type):
     ax2.legend(lines1 + lines2, labels1 + labels2, loc='lower right')
     
     # 保存
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_embedding_error'
-    filename = f"{output_path}/amplitude_gain_vs_PESQ.svg"
+    filename = f'{output_path}/amplitude_gain_vs_PESQ.svg'
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     
@@ -101,6 +106,10 @@ def plot_impulse(music_type):
     None
     
     """
+
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
 
     # 変数設定
     fft_points = 2048
@@ -141,8 +150,7 @@ def plot_impulse(music_type):
     ax.set_xlim([1000*time_axis[0], 1000*time_axis[-1]])
 
     # 保存
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_impulse'
-    filename = f"{output_path}/impulse.svg"
+    filename = f'{output_path}/impulse.svg'
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     plt.clf()
@@ -166,7 +174,11 @@ def plot_mean_embedded_csp(music_type):
     None
     
     """
-    
+
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
     # 変数設定
     fft_points = 1024
     fs = 44100
@@ -245,8 +257,7 @@ def plot_mean_embedded_csp(music_type):
     ax3.set_ylim([0, y_max])
     
     # 保存
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_csp'
-    filename = f"{output_path}/csp.svg"
+    filename = f'{output_path}/csp.svg'
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     plt.clf()
@@ -254,7 +265,11 @@ def plot_mean_embedded_csp(music_type):
     return
 
 def plot_embedded_frequencies(music_type):
-    
+
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
     # 変数設定
     frame_length    = 1024
     sampling_rate   = 44100
@@ -285,8 +300,7 @@ def plot_embedded_frequencies(music_type):
 
     
     # 保存
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_embedded_frequencies'
-    filename = f"{output_path}/embedded_frequencies.svg"
+    filename = f'{output_path}/embedded_frequencies.svg'
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     plt.clf()
@@ -294,6 +308,10 @@ def plot_embedded_frequencies(music_type):
     return
 
 def plot_audio_waveform(music_type):
+
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
 
     # 変数設定
     sampling_rate   = 44100
@@ -323,8 +341,7 @@ def plot_audio_waveform(music_type):
 
     
     # 保存
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/plot_audio_waveform'
-    filename = f"{output_path}/audio_waveform.svg"
+    filename = f'{output_path}/audio_waveform.svg'
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     plt.clf()
