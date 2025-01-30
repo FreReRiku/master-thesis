@@ -7,6 +7,7 @@ GCC-PHAT法を用いて相互相関, 並びに遅延推定を求めます.
 Created by FreReRiku on 2025/01/17
 '''
 
+from pathlib import Path
 import numpy as np
 import soundfile as sf
 import save
@@ -17,6 +18,19 @@ from scipy.signal import find_peaks
 from scipy.fft import irfft
 
 def gcc_phat(music_type):
+
+    # ------------------------------
+    # 必要なディレクトリを作成
+    # ------------------------------
+    directories = [
+        Path(f"./../../sound/distance_estimation/music{music_type}_mono"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/csv_files"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/csv_files/logs"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data"),
+    ]
+    
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------
     # 1. パラメータの設定
