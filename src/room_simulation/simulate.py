@@ -6,15 +6,30 @@ simulate.py
 
 Created by FreReRiku on 2025/01/17
 """
+import numpy as np
+import matplotlib.pyplot as plt
+import pyroomacoustics as pra
+import soundfile as sf
+from scipy.io import wavfile
+import save
+import convert
+from pathlib import Path
 
 def room(music_type):
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import pyroomacoustics as pra
-    import soundfile as sf
-    from scipy.io import wavfile
-    import save
-    import convert
+
+    # ------------------------------
+    # 音源・スピーカーの設定
+    # ------------------------------
+    directories = [
+        Path("./../../sound/original"),
+        Path("./../../sound/room_simulation"),
+        Path("./../../figure/room_simulation"),
+        Path("./../../data/room_simulation/room_info"),
+        Path("./../../data/room_simulation/sr_and_spk")
+    ]
+    
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------
     # 音源・スピーカーの設定
