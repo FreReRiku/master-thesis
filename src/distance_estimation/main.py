@@ -6,7 +6,6 @@ Created by FreReRiku on 2024/12/30
 """
 
 import calc
-import numpy as np
 import visualize
 
 music_type = [1, 2]         # 使用する楽曲のタイプ
