@@ -9,7 +9,7 @@ import calc
 import visualize
 
 music_type = [1, 2]         # 使用する楽曲のタイプ
-emb_type = ["amp", "phase"]
+emb_type = ["amplitude_modulation", "phase_modulation"]
 
 for music in music_type:
 
