@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 
 
-def plot_embedding_error(music_type):
+def plot_embedding_error(music_type, emb_type):
 
     """
     埋込強度変化に伴う推定誤差とPESQの変化をプロットする関数.
@@ -30,7 +30,7 @@ def plot_embedding_error(music_type):
     """
 
     # 必要なディレクトリを作成
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     
@@ -43,8 +43,8 @@ def plot_embedding_error(music_type):
     speed_of_sound=340.29
 
     # 使用するCSVファイルのパスを指定
-    delay_time_errors_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/delay_time_errors.csv'
-    pesq_scores_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/pesq_scores.csv'
+    delay_time_errors_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/delay_time_errors.csv'
+    pesq_scores_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/pesq_scores.csv'
     # --------------------
     # CSVファイルの読み込み
     # --------------------
@@ -92,7 +92,7 @@ def plot_embedding_error(music_type):
     
     return
 
-def plot_impulse(music_type):
+def plot_impulse(music_type, emb_type):
     """
     インパルス応答をプロットする関数.
     
@@ -108,7 +108,7 @@ def plot_impulse(music_type):
     """
 
     # 必要なディレクトリを作成
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     # 変数設定
@@ -117,8 +117,8 @@ def plot_impulse(music_type):
     time_axis = np.arange(fft_points) / fs
 
     # 使用するCSVファイルのパスを指定
-    impulse_position_data_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/first_detected_peak_positions.csv'
-    impulse_response_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/impulse.csv'
+    impulse_position_data_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/first_detected_peak_positions.csv'
+    impulse_response_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/impulse.csv'
 
     # --------------------
     # CSVファイルの読み込み
@@ -158,7 +158,7 @@ def plot_impulse(music_type):
     return
     
 
-def plot_mean_embedded_csp(music_type):
+def plot_mean_embedded_csp(music_type, emb_type):
     """
     埋め込み周波数を利用したCSPグラフを作成する関数.
     
@@ -176,7 +176,7 @@ def plot_mean_embedded_csp(music_type):
     """
 
     # 必要なディレクトリを作成
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     # 変数設定
@@ -186,13 +186,14 @@ def plot_mean_embedded_csp(music_type):
     threshold_ratio = 0.2
     
     # 使用するCSVファイルのパスを指定
-    # embedded_csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp1_values.csv'
-    csp1_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/csp1_values.csv'
-    embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/csp2_values.csv'
-    # embedded_csp2_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp2_values.csv'
-    embedded_subtract_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_csp_difference.csv'
-    embedded_weighted_csp_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_freq_weighted_csp_values.csv'
-    delay_adjusted_peak_positions_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/delay_adjusted_peak_positions.csv'
+    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data'
+    # embedded_csp1_path = f'{raw_data_path}/embedded_freq_csp1_values.csv'
+    csp1_path = f'{raw_data_path}/csp1_values.csv'
+    embedded_csp2_path = f'{raw_data_path}/csp2_values.csv'
+    # embedded_csp2_path = f'{raw_data_path}/embedded_freq_csp2_values.csv'
+    embedded_subtract_csp_path = f'{raw_data_path}/embedded_freq_csp_difference.csv'
+    embedded_weighted_csp_path = f'{raw_data_path}/embedded_freq_weighted_csp_values.csv'
+    delay_adjusted_peak_positions_path = f'{raw_data_path}/delay_adjusted_peak_positions.csv'
     
     # --------------------
     # CSVファイルの読み込み
@@ -264,10 +265,10 @@ def plot_mean_embedded_csp(music_type):
     
     return
 
-def plot_embedded_frequencies(music_type):
+def plot_embedded_frequencies(music_type, emb_type):
 
     # 必要なディレクトリを作成
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     # 変数設定
@@ -275,7 +276,7 @@ def plot_embedded_frequencies(music_type):
     sampling_rate   = 44100
 
     # 埋め込み周波数のCSVファイルのパス
-    data_file_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/embedded_frequencies.csv'
+    data_file_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/embedded_frequencies.csv'
 
     # CSVファイルを読み込み
     data_file = pd.read_csv(data_file_path)
@@ -307,17 +308,17 @@ def plot_embedded_frequencies(music_type):
 
     return
 
-def plot_audio_waveform(music_type):
+def plot_audio_waveform(music_type, emb_type):
 
     # 必要なディレクトリを作成
-    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/'
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
     Path(output_path).mkdir(parents=True, exist_ok=True)
 
     # 変数設定
     sampling_rate   = 44100
 
     # 埋め込み周波数のCSVファイルのパス
-    data_file_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data/music{music_type}_mono_trimmed.csv'
+    data_file_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/music{music_type}_mono_trimmed.csv'
 
     # CSVファイルを読み込み
     data_file = pd.read_csv(data_file_path)
