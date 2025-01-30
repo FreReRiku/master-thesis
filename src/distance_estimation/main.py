@@ -15,6 +15,7 @@ for music in music_type:
 
     for emb in emb_type:
         # 遅延推定の計算
+        print(f'music_type{music}の{emb}処理を行います.')
         calc.gcc_phat(music, emb)
 
         # 可視化処理
