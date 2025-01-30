@@ -17,16 +17,16 @@ from librosa import stft, istft, resample
 from scipy.signal import find_peaks
 from scipy.fft import irfft
 
-def gcc_phat(music_type):
+def gcc_phat(music_type, emb_type):
 
     # ------------------------------
     # 必要なディレクトリを作成
     # ------------------------------
     directories = [
-        Path(f"./../../sound/distance_estimation/music{music_type}_mono"),
-        Path(f"./../../data/distance_estimation/music{music_type}_mono/csv_files"),
-        Path(f"./../../data/distance_estimation/music{music_type}_mono/csv_files/logs"),
-        Path(f"./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data"),
+        Path(f"./../../sound/distance_estimation/music{music_type}_mono/{emb_type}"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/logs"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data"),
     ]
     
     for directory in directories:
@@ -38,6 +38,9 @@ def gcc_phat(music_type):
 
     # 音源タイプの指定
     music_type = music_type
+
+    # 埋め込みタイプの指定
+    emb_type = emb_type
 
     # 極小値をゼロ除算防止のために使用
     epsilon = 1e-20
@@ -99,11 +102,13 @@ def gcc_phat(music_type):
     # 埋め込み処理の試行回数を定義 (振幅を段階的に変化させてテスト)
     loop_times = 25     # 振幅を25段階に設定
 
-    # 埋め込み振幅の値 (0 から 1 まで均等に分割した値, 論文中のNを0から1に変化させている)
-    embedding_amplitudes    = np.linspace(0, 1, loop_times)
-
-    # 埋め込む位相の設定 (現在未使用)
-    # embedding_phase  = 0  # 必要に応じて位相変化を追加可能
+    # 埋め込み方法に応じた処理
+    if emb_type == "amplitude_modulation":
+        embedding_operator = np.linspace(0, 1, loop_times)  # 振幅変調 (論文中のNを0から1に変化させている)
+    elif emb_type == "phase_modulation":
+        embedding_operator = np.linspace(0, 180, 25)        # 位相変調 (0° ~ 180°)
+    else:
+        raise ValueError(f"Unknown embedding type: {emb_type}")
 
     # --------------------
     # 4. データ格納用のリスト
@@ -112,10 +117,11 @@ def gcc_phat(music_type):
     # 遅延推定誤差を記録するリスト
     delay_time_errors = []  # 指定された遅延量と真値の誤差を格納
 
-    # 音質評価 (PESQスコア) を記録するリスト
-    pesq_scores = []        # 埋め込み処理後の音質評価スコア
+    # 音質評価を記録するリスト
+    pesq_scores = []        # 埋め込み処理後の音声品質の知覚評価
+    snr_scores  = []        # 埋め込み処理後の信号対雑音比
 
-    for num, amplitude_gain in enumerate(embedding_amplitudes):
+    for num, embed in enumerate(embedding_operator):    # 埋め込む種類に応じた処理が行われる
 
         # ------------------------------
         # 5. オーディオファイルの読み込み
@@ -337,18 +343,23 @@ def gcc_phat(music_type):
             # ------------------------------
             # 13. 振幅変調と位相変調
             # ------------------------------
-            # 振幅変調: 選択された周波数成分に対して振幅を変更
-            # - 埋め込み対象の周波数ビンに指定した振幅ゲイン (amplitude_gain) を適用
-            embedded_y1spec[embedded_frequencies, :] = amplitude_gain * embedded_y1spec[embedded_frequencies, :]
 
-            # 位相変調: 選択された周波数成分の位相を調整 (現在は無効)
-            # - 位相変調を適用する場合はコメントを解除してください
-            # phase_shift = embedding_phase / 180 * np.pi       # 度単位の位相シフトをラジアンに変換
-            # embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
+            if emb_type == "amplitude_modulation":
+                # 振幅変調: 選択された周波数成分に対して振幅を変更
+                # - 埋め込み対象の周波数ビンに指定した振幅変調を適用
+                embedded_y1spec[embedded_frequencies, :] = embed * embedded_y1spec[embedded_frequencies, :]
+                # 音質検査用の振幅変調
+                # - 埋め込み対象の配列 (y1zero) に対して振幅変調を適用
+                y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = embed * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
 
-            # 音質検査用の振幅変調
-            # - 埋め込み対象の配列 (y1zero) に対して振幅ゲインを適用
-            y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = amplitude_gain * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
+            elif emb_type == "phase_modulation":
+                # 位相変調: 選択された周波数成分の位相を調整
+                phase_shift = embed / 180 * np.pi       # 度単位の位相シフトをラジアンに変換
+                embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
+                # 音質検査用の振幅変調
+                # - 埋め込み対象の配列 (y1zero) に対して位相変調を適用
+                y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] * np.exp(1j * phase_shift)
+
 
             # ------------------------------
             # 14. CSP2を求める
@@ -651,11 +662,12 @@ def gcc_phat(music_type):
         # - 元波形と埋め込み波形の差を基にSNRを算出
         signal_power = sum(original_waveform ** 2)
         noise_power  = sum((original_waveform - embedded_waveform) ** 2)
-        snr = 20 * np.log10(signal_power / noise_power)
+        snr_score = 20 * np.log10(signal_power / noise_power)
+        snr_scores.append(snr_score)
 
         # 生成された音源の保存
         # - 埋め込み強度を含むファイル名で波形を保存
-        sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/embedded_music{music_type}_gain{amplitude_gain:.2f}.wav', embedded_waveform, sampling_rate)
+        sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/{emb_type}/embedded_music{music_type}_gain{embed:.2f}.wav', embedded_waveform, sampling_rate)
 
         # 確認用の進捗表示
         print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
@@ -672,10 +684,10 @@ def gcc_phat(music_type):
 
     # 保存先のパスを指定
     # - ログファイル
-    logs_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/logs'
+    logs_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/logs'
 
     # - 計算結果
-    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/csv_files/raw_data'
+    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data'
 
     # ログファイルに書き込むデータ
     # - 1_1. 設定条件
