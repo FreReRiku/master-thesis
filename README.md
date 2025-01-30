@@ -6,50 +6,54 @@
 
 ```bash
 .
-├── Makefile
 ├── README.md
+├── Makefile
 ├── requirements.txt
 ├── data
 │   ├── distance_estimation
 │   │   ├── music1_mono
-│   │   │   └── csv_files
-│   │   │       ├── logs
-│   │   │       └── raw_data
-│   │   │  
+│   │   │   ├── amplitude_modulation
+│   │   │   │   └── csv_files
+│   │   │   │       ├── logs
+│   │   │   │       └── raw_data
+│   │   │   └── phase_modulation
+│   │   │       └── csv_files
+│   │   │           ├── logs
+│   │   │           └── raw_data
 │   │   └── music2_mono
-│   │       └── csv_files
-│   │           ├── logs
-│   │           └── raw_data
-│   │
+│   │       ├── amplitude_modulation
+│   │       │   └── csv_files
+│   │       │       ├── logs
+│   │       │       └── raw_data
+│   │       └── phase_modulation
+│   │           └── csv_files
+│   │               ├── logs
+│   │               └── raw_data
 │   └── room_simulation
 │       ├── room_info
 │       └── sr_and_spk
-│
 ├── figure
 │   ├── distance_estimation
 │   │   ├── music1_mono
+│   │   │   ├── amplitude_modulation
+│   │   │   └── phase_modulation
 │   │   └── music2_mono
+│   │       ├── amplitude_modulation
+│   │       └── phase_modulation
 │   └── room_simulation
-│
 ├── sound
 │   ├── distance_estimation
 │   │   ├── music1_mono
+│   │   │   ├── amplitude_modulation
+│   │   │   └── phase_modulation
 │   │   └── music2_mono
+│   │       ├── amplitude_modulation
+│   │       └── phase_modulation
 │   ├── original
-│   │   ├── music1_mono.wav
-│   │   └── music2_mono.wav
 │   └── room_simulation
 ├── src
 │   ├── distance_estimation
-│   │   ├── calc.py
-│   │   ├── main.py
-│   │   ├── save.py
-│   │   └── visualize.py
 │   └── room_simulation
-│       ├── convert.py
-│       ├── main.py
-│       ├── save.py
-│       └── simulate.py
 │
 └── .gitignore
 ```
@@ -93,8 +97,8 @@ make distance_estimation
 1. **`room_simulation/main.py` の実行**
     - `simulate.py` により音場のシミュレーションを行い、 `sound/room_simulation/` にデータを保存。
 2. **`distance_estimation/main.py` の実行**
-    - `calc.py` によりGCC-PHATを用いた遅延推定を行い、 `data/distance_estimation/musicX_mono/csv_files/raw_data/` にデータを保存。
-    - `visualize.py` によりデータを可視化し、 `figure/distance_estimation/musicX_mono/` にグラフを保存。
+    - `calc.py` によりGCC-PHATを用いた遅延推定を行い、 `data/distance_estimation/musicX_mono/{modulation_type}/csv_files/raw_data/` にデータを保存。
+    - `visualize.py` によりデータを可視化し、 `figure/distance_estimation/musicX_mono/{modulation_type}/` にグラフを保存。
 
 ## 5. スクリプトの説明
 
@@ -119,8 +123,8 @@ make distance_estimation
 
 ### 2. 距離推定の出力
 
-- `data/distance_estimation/musicX_mono/csv_files/raw_data/` ： 計算結果の CSV ファイル。
-- `figure/distance_estimation/musicX_mono/` ： 可視化結果のグラフ（SVG 形式）。
+- `data/distance_estimation/musicX_mono/{modulation_type}/csv_files/raw_data/` ： 計算結果の CSV ファイル。
+- `figure/distance_estimation/musicX_mono/{modulation_type}/` ： 可視化結果のグラフ（SVG 形式）。
 
 ## 7. 注意事項
 
