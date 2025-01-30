@@ -63,10 +63,6 @@
 pip install -r requirements.txt
 ```
 
-```bash
-pip install numpy scipy matplotlib pandas soundfile pyroomacoustics pesq librosa
-```
-
 ## 3. 使用方法
 
 ### 全体の処理を実行する
