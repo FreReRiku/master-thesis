@@ -22,6 +22,9 @@ for music in music_type:
         visualize.plot_embedding_error(music, emb)
         visualize.plot_impulse(music, emb)
         visualize.plot_mean_embedded_csp(music, emb)
+        visualize.plot_mean_csp1(music, emb)
+        visualize.plot_mean_csp2(music, emb)
+        visualize.plot_mean_csp_ws(music, emb)
         visualize.plot_embedded_frequencies(music, emb)
         visualize.plot_audio_waveform(music, emb)
 
