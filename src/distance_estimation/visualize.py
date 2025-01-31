@@ -12,9 +12,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-
 def plot_embedding_error(music_type, emb_type):
-
     """
     埋込強度変化に伴う推定誤差とPESQの変化をプロットする関数.
     
@@ -22,29 +20,41 @@ def plot_embedding_error(music_type, emb_type):
     ----------
     music_type: int
         使用する楽曲のタイプ.
+    emb_type: str
+        埋め込みタイプの識別子. "amplitude_modulation" または "phase_modulation" を想定.
     
     Returns
     -------
     None
-    
     """
-
+    
     # 必要なディレクトリを作成
     output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
     Path(output_path).mkdir(parents=True, exist_ok=True)
-
     
     # 変数設定
     n_fft = 2048
     fs = 44100
-    time_axis = np.arange(n_fft) / fs
-
+    time_axis = np.arange(n_fft) / fs  # ※今回のプロットには使用していないが, 他で必要なら保持
     embedding_amplitudes = np.linspace(0, 1, 25)
-    speed_of_sound=340.29
+    speed_of_sound = 340.29
 
+    # emb_type によって x 軸の値とラベル, 表示範囲を設定
+    if emb_type == "amplitude_modulation":
+        x_values = embedding_amplitudes
+        x_label = "Embedding Amplitude Gain"
+        x_limits = [-0.05, 1.0]
+        legend_loc = 'upper left'
+    elif emb_type == "phase_modulation": 
+        # 0～1 の振幅を 0～180° に線形変換
+        x_values = embedding_amplitudes * 180
+        x_label = "Embedding Phase [degree]"
+        x_limits = [0, 180]
+        legend_loc = 'upper right'
     # 使用するCSVファイルのパスを指定
     delay_time_errors_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/delay_time_errors.csv'
     pesq_scores_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data/pesq_scores.csv'
+    
     # --------------------
     # CSVファイルの読み込み
     # --------------------
@@ -65,32 +75,33 @@ def plot_embedding_error(music_type, emb_type):
     ax1 = fig.add_subplot(1, 1, 1)
     
     # 左縦軸プロット (推定距離誤差)
-    ax1.plot(embedding_amplitudes, delay_time_errors * speed_of_sound / 1000, label='Distance Estimation Error')
-    ax1.set_xlim([-0.05, 1.0])
-    ax1.set_xlabel("Embedding Amplitude Gain")
+    ax1.plot(x_values, delay_time_errors * speed_of_sound / 1000, label='Distance Estimation Error')
+    ax1.set_xlim(x_limits)
+    ax1.set_xlabel(x_label)
     ax1.set_ylabel("Estimation Distance Error [m]")
     
     # 右縦軸プロット (PESQスコア)
     ax2 = ax1.twinx()
-    ax2.plot(embedding_amplitudes, pesq_scores, 'r', label='PESQ')
+    ax2.plot(x_values, pesq_scores, 'r', label='PESQ')
     ax2.set_ylim([-0.05, 5.5])
     ax2.set_ylabel("PESQ")
     
     # 凡例の設定
     lines1, labels1 = ax1.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax2.legend(lines1 + lines2, labels1 + labels2, loc='lower right')
+    ax2.legend(lines1 + lines2, labels1 + labels2, loc=legend_loc)
     
-    # 保存
-    filename = f'{output_path}/amplitude_gain_vs_PESQ.svg'
+    # 画像の保存
+    filename = f'{output_path}/{emb_type}_vs_PESQ.svg'
     plt.savefig(filename)
     print(f"画像が保存されました: {filename}")
     
     plt.clf()
-    # 表示 (必要ならコメントアウト解除で有効化してください)
+    # 必要なら plt.show() を有効化
     # plt.show()
     
     return
+
 
 def plot_impulse(music_type, emb_type):
     """
@@ -347,4 +358,239 @@ def plot_audio_waveform(music_type, emb_type):
     print(f"画像が保存されました: {filename}")
     plt.clf()
 
+    return
+
+def plot_mean_csp1(music_type, emb_type):
+    """
+    CSP1グラフを作成する関数.
+    
+    この関数は, 与えられた音楽データの埋め込みCSPに基づく平均的なグラフをプロットし, 結果を保存します.
+    
+    Parameters
+    ----------
+    music_type: int
+        使用する楽曲のタイプ.
+    emb_type: str
+        埋め込みタイプの識別子.
+    
+    Returns
+    -------
+    None
+    """
+    
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    
+    # 変数設定
+    fft_points = 1024
+    fs = 44100
+    time_axis = np.arange(fft_points) / fs
+    threshold_ratio = 0.2
+    
+    # 使用するCSVファイルのパスを指定
+    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data'
+    csp1_path = f'{raw_data_path}/csp1_values.csv'
+    delay_adjusted_peak_positions_path = f'{raw_data_path}/delay_adjusted_peak_positions.csv'
+    
+    # --------------------
+    # CSVファイルの読み込み
+    # --------------------
+    try:
+        csp1 = pd.read_csv(csp1_path, header=None, skiprows=1).to_numpy()
+        delay_adjusted_peak_positions = pd.read_csv(delay_adjusted_peak_positions_path, header=None, skiprows=1).squeeze("columns").to_numpy()
+    except Exception as e:
+        print(f"Error loading CSV files: {e}")
+        return
+    
+    # 図全体に1つのサブプロットを配置するために, グリッド指定 (1, 1, 1) とし, figsize も横長に設定する
+    fig = plt.figure(num='CSP1', figsize=(8, 4))
+    ax1 = fig.add_subplot(1, 1, 1)
+    
+    # 平均CSP1を計算
+    mean_csp1 = np.mean(csp1[:, :fft_points], axis=0)
+    
+    # 遅延調整されたピーク位置に対して, 各ピーク位置で縦線を描画する
+    for p, c in zip(delay_adjusted_peak_positions, ['r', 'g']):
+        ax1.axvline(1000 * p / fs, color=c, linestyle='--')
+    
+    # 閾値ラインは1回だけ描画する
+    ax1.axhline(threshold_ratio, color='k', linestyle=':')
+    
+    # 平均CSP1のプロット
+    ax1.plot(1000 * time_axis, mean_csp1, color='b')
+    
+    # 軸ラベルとタイトルの設定
+    ax1.set_xlabel("Time [ms]", fontname="MS Gothic")
+    ax1.set_ylabel("Amplitude")
+    ax1.set_title("CSP1")
+    ax1.set_xlim([1000 * time_axis[0], 1000 * time_axis[-1]])
+    ax1.set_ylim([-0.5, 1.1])
+    
+    # レイアウトを自動調整して余白を最適化する
+    plt.tight_layout()
+    
+    # 画像の保存
+    filename = f'{output_path}/csp1.svg'
+    plt.savefig(filename, bbox_inches='tight')
+    print(f"画像が保存されました: {filename}")
+    plt.clf()
+    
+    return
+
+def plot_mean_csp2(music_type, emb_type):
+    """
+    CSP1グラフを作成する関数.
+    
+    この関数は, 与えられた音楽データの埋め込みCSPに基づく平均的なグラフをプロットし, 結果を保存します.
+    
+    Parameters
+    ----------
+    music_type: int
+        使用する楽曲のタイプ.
+    emb_type: str
+        埋め込みタイプの識別子.
+    
+    Returns
+    -------
+    None
+    """
+    
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    
+    # 変数設定
+    fft_points = 1024
+    fs = 44100
+    time_axis = np.arange(fft_points) / fs
+    threshold_ratio = 0.2
+    
+    # 使用するCSVファイルのパスを指定
+    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data'
+    csp2_path = f'{raw_data_path}/csp2_values.csv'
+    delay_adjusted_peak_positions_path = f'{raw_data_path}/delay_adjusted_peak_positions.csv'
+    
+    # --------------------
+    # CSVファイルの読み込み
+    # --------------------
+    try:
+        csp2 = pd.read_csv(csp2_path, header=None, skiprows=1).to_numpy()
+        delay_adjusted_peak_positions = pd.read_csv(delay_adjusted_peak_positions_path, header=None, skiprows=1).squeeze("columns").to_numpy()
+    except Exception as e:
+        print(f"Error loading CSV files: {e}")
+        return
+    
+    # 図全体に1つのサブプロットを配置するために, グリッド指定 (1, 1, 1) とし, figsize も横長に設定する
+    fig = plt.figure(num='CSP1', figsize=(8, 4))
+    ax1 = fig.add_subplot(1, 1, 1)
+    
+    # 平均CSP1を計算
+    mean_csp2 = np.mean(csp2[:, :fft_points], axis=0)
+    
+    # 遅延調整されたピーク位置に対して, 各ピーク位置で縦線を描画する
+    for p, c in zip(delay_adjusted_peak_positions, ['r', 'g']):
+        ax1.axvline(1000 * p / fs, color=c, linestyle='--')
+    
+    # 閾値ラインは1回だけ描画する
+    ax1.axhline(threshold_ratio, color='k', linestyle=':')
+    
+    # 平均CSP1のプロット
+    ax1.plot(1000 * time_axis, mean_csp2, color='b')
+    
+    # 軸ラベルとタイトルの設定
+    ax1.set_xlabel("Time [ms]", fontname="MS Gothic")
+    ax1.set_ylabel("Amplitude")
+    ax1.set_title("CSP2")
+    ax1.set_xlim([1000 * time_axis[0], 1000 * time_axis[-1]])
+    ax1.set_ylim([-0.5, 1.1])
+    
+    # レイアウトを自動調整して余白を最適化する
+    plt.tight_layout()
+    
+    # 画像の保存
+    filename = f'{output_path}/csp2.svg'
+    plt.savefig(filename, bbox_inches='tight')
+    print(f"画像が保存されました: {filename}")
+    plt.clf()
+    
+    return
+
+def plot_mean_csp_ws(music_type, emb_type):
+    """
+    埋め込み周波数を利用したCSPグラフを作成する関数.
+    
+    この関数は, 与えられた音楽データの埋め込みCSPに基づく平均的なグラフをプロットし, 結果を保存します.
+    
+    Parameters
+    ----------
+    music_type: int
+        使用する楽曲のタイプ.
+    emb_type: str
+        埋め込みタイプの識別子.
+    
+    Returns
+    -------
+    None
+    """
+    
+    # 必要なディレクトリを作成
+    output_path = f'./../../figure/distance_estimation/music{music_type}_mono/{emb_type}'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    
+    # 変数設定
+    fft_points = 1024
+    fs = 44100
+    time_axis = np.arange(fft_points) / fs
+    threshold_ratio = 0.2
+    
+    # 使用するCSVファイルのパスを指定
+    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data'
+    embedded_subtract_csp_path = f'{raw_data_path}/embedded_freq_csp_difference.csv'
+    embedded_weighted_csp_path = f'{raw_data_path}/embedded_freq_weighted_csp_values.csv'
+    delay_adjusted_peak_positions_path = f'{raw_data_path}/delay_adjusted_peak_positions.csv'
+    
+    # --------------------
+    # CSVファイルの読み込み
+    # --------------------
+    try:
+        embedded_subtract_csp = pd.read_csv(embedded_subtract_csp_path, header=None, skiprows=1).to_numpy()
+        embedded_weighted_csp = pd.read_csv(embedded_weighted_csp_path, header=None, skiprows=1).to_numpy()
+        delay_adjusted_peak_positions = pd.read_csv(delay_adjusted_peak_positions_path, header=None, skiprows=1).squeeze("columns").to_numpy()
+    except Exception as e:
+        print(f"Error loading CSV files: {e}")
+        return
+    
+    # plt.subplots を用いて, figsize=(8,4) の横長レイアウトで図と軸を生成
+    fig, ax1 = plt.subplots(1, 1, figsize=(8, 4))
+    
+    # 平均値の計算
+    mean_emb_freq_subtract_csp = np.mean(embedded_subtract_csp[:, :fft_points], axis=0)
+    mean_emb_freq_weighted_csp = np.mean(embedded_weighted_csp[:, :fft_points], axis=0)
+    
+    # 遅延調整されたピーク位置に対応する縦線の描画
+    for p, c in zip(delay_adjusted_peak_positions, ['r', 'g']):
+        ax1.axvline(1000 * p / fs, color=c, linestyle='--')
+    
+    # 各計算結果のプロット
+    ax1.plot(1000 * time_axis, mean_emb_freq_subtract_csp, color='lightgray')
+    ax1.plot(1000 * time_axis, mean_emb_freq_weighted_csp, color='r')
+    
+    # 軸ラベル, タイトル, および表示範囲の設定
+    ax1.set_xlabel("Time [ms]", fontname="MS Gothic")
+    ax1.set_ylabel("Amplitude")
+    ax1.set_title("Weighted Difference-CSP")
+    ax1.set_xlim([1000 * time_axis[0], 1000 * time_axis[-1]])
+    _, y_max = ax1.get_ylim()
+    ax1.set_ylim([0, y_max])
+    
+    # 自動レイアウト調整
+    plt.tight_layout()
+    
+    # 画像の保存
+    filename = f'{output_path}/csp_ws.svg'
+    plt.savefig(filename, bbox_inches='tight')
+    print(f"画像が保存されました: {filename}")
+    plt.clf()
+    
     return
