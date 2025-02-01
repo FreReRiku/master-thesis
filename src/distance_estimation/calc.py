@@ -12,21 +12,22 @@ import numpy as np
 import soundfile as sf
 import save
 import csv
+import itertools
 from pesq import pesq
 from librosa import stft, istft, resample
 from scipy.signal import find_peaks
 from scipy.fft import irfft
 
-def gcc_phat(music_type, emb_type):
+def gcc_phat(music_type, emb_type, variable):
 
     # ------------------------------
     # 必要なディレクトリを作成
     # ------------------------------
     directories = [
-        Path(f"./../../sound/distance_estimation/music{music_type}_mono/{emb_type}"),
-        Path(f"./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files"),
-        Path(f"./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/logs"),
-        Path(f"./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data"),
+        Path(f"./../../sound/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}/csv_files"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}/csv_files/logs"),
+        Path(f"./../../data/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}/csv_files/raw_data"),
     ]
     
     for directory in directories:
@@ -41,6 +42,12 @@ def gcc_phat(music_type, emb_type):
 
     # 埋め込みタイプの指定
     emb_type = emb_type
+
+    # ループタイプの指定
+    variable = variable
+
+    # ループセットの初期化
+    loop_set = None
 
     # 極小値をゼロ除算防止のために使用
     epsilon = 1e-20
@@ -73,12 +80,66 @@ def gcc_phat(music_type, emb_type):
     # フレーム開始位置をずらす回数
     num_trials      = 100       # フレーム開始位置を 100 回シフトする
 
-    # 埋め込みを行うフレーム数 [フレーム数] (論文では M と表記)
-    num_embedding_frames        = 40    # 連続して特定の振幅を埋め込むフレーム数
+    # CSPの最大値に対するノイズと判定する振幅比のしきい値(const)
+    threshold_ratio  = 0.3  # ピーク振幅がこの値以下の場合ノイズと判定
 
-    # 埋め込みを行う周波数の範囲 (STFTフレーム内のビン数, 論文中では L と表記)
-    embedding_frequency_ratio   = 0.1    # フレーム長の10%を埋め込み対象にしている
-    embedding_frequency_bins    = np.floor(frame_length*embedding_frequency_ratio).astype(int)
+    # ----------------
+    # 2. 埋め込み設定
+    # ----------------
+
+    # variable_parameters = ["embedding_ratio", "embedding_freq_ratio", "embedding_num_frames"]
+    # 埋め込み処理の試行回数を定義
+    loop_times = 25
+
+    # num_embedding_frames_value # Mに該当. 連続して特定の振幅を埋め込むフレーム数
+    # embedding_frequency_ratio_value # Lに該当. 振幅の大きい上位L%が埋め込みされる.
+    # if emb_type == "amplitude_modulation":
+    #         embedding_ratio_value # Nに該当. 振幅変調
+    # elif emb_type == "phase_modulation":
+    #         embedding_ratio_value # Nに該当. 位相変調 [degree]
+
+
+    # 条件分岐
+    if variable == "embedding_ratio":
+        # ループ可変変数の処理
+        if emb_type == "amplitude_modulation":
+            embedding_ratio_value = np.linspace(0, 1, loop_times)  # 振幅変調 (論文中のNを0から1に変化させている)
+        else:
+            embedding_ratio_value = np.linspace(0, 180, loop_times)        # 位相変調 (0° ~ 180°)
+        
+        # ループで値が変動しない変数の処理
+        num_embedding_frames_value        = 40      # Mに該当. 連続して特定の振幅を埋め込むフレーム数
+        embedding_frequency_ratio_value   = 0.1     # Lに該当. フレーム長の10%を埋め込み対象にしている
+
+        loop_set = zip(embedding_ratio_value, itertools.repeat(num_embedding_frames_value, loop_times), itertools.repeat(embedding_frequency_ratio_value, loop_times))
+    
+    elif variable ==  "embedding_freq_ratio":
+        # ループ可変変数の処理
+        embedding_frequency_ratio_value = np.linspace(0.5, 0.95, loop_times)
+        
+        # ループで値が変動しない変数の処理
+        num_embedding_frames_value = 40
+        if emb_type == "amplitude_modulation":
+            embedding_ratio_value = 0.2
+        else:
+            embedding_ratio_value = 180
+    
+        loop_set = zip(itertools.repeat(embedding_ratio_value, loop_times), itertools.repeat(num_embedding_frames_value, loop_times), embedding_frequency_ratio_value)
+    else: # variable == "embedding_num_frames"
+
+        # ループ可変変数の処理
+        num_embedding_frames_value = np.linspace(5, 125, 25)
+
+        # ループで値が変動しない変数の処理
+        if emb_type == "amplitude_modulation":
+            embedding_ratio_value = 0.2
+        else:
+            embedding_ratio_value = 180
+        embedding_frequency_ratio_value   = 0.1
+
+        loop_set = zip(itertools.repeat(embedding_ratio_value, loop_times), num_embedding_frames_value, itertools.repeat(embedding_frequency_ratio_value, loop_times))
+
+
 
     # 各試行におけるフレーム開始位置
     # フレーム開始位置のシフトリストを作成
@@ -88,28 +149,6 @@ def gcc_phat(music_type, emb_type):
     # frame_count = round(16000*3/16000)     # フレームカウント
     # pos_st_frame = np.arange(0, num_trials*frame_count, frame_count)
 
-    # CSPの最大値に対するノイズと判定する振幅比のしきい値(const)
-    threshold_ratio  = 0.3  # ピーク振幅がこの値以下の場合ノイズと判定
-
-    # --------------------------
-    # 2. 設定したパラメーターを記録
-    # --------------------------
-
-    # ----------------
-    # 3. 埋め込み設定
-    # ----------------
-
-    # 埋め込み振幅の設定
-    # 埋め込み処理の試行回数を定義 (振幅を段階的に変化させてテスト)
-    loop_times = 25     # 振幅を25段階に設定
-
-    # 埋め込み方法に応じた処理
-    if emb_type == "amplitude_modulation":
-        embedding_ratio = np.linspace(0, 1, loop_times)  # 振幅変調 (論文中のNを0から1に変化させている)
-    elif emb_type == "phase_modulation":
-        embedding_ratio = np.linspace(0, 180, loop_times)        # 位相変調 (0° ~ 180°)
-    else:
-        raise ValueError(f"Unknown embedding type: {emb_type}")
 
     # --------------------
     # 4. データ格納用のリスト
@@ -122,8 +161,14 @@ def gcc_phat(music_type, emb_type):
     pesq_scores = []        # 埋め込み処理後の音声品質の知覚評価
     snr_scores  = []        # 埋め込み処理後の信号対雑音比
 
-    for num, embed in enumerate(embedding_ratio):    # 埋め込む種類に応じた処理が行われる
+    # ループカウンター
+    num = 0
+    for embedding_ratio, num_embedding_frames, embedding_frequency_ratio  in loop_set:    # 埋め込む種類に応じた処理が行われる
 
+        num_embedding_frames = int(num_embedding_frames)
+        embedding_frequency_bins    = np.floor(frame_length*embedding_frequency_ratio).astype(int)
+        # ループカウンターに加算
+        num += 1
         # ------------------------------
         # 5. オーディオファイルの読み込み
         # ------------------------------
@@ -348,14 +393,14 @@ def gcc_phat(music_type, emb_type):
             if emb_type == "amplitude_modulation":
                 # 振幅変調: 選択された周波数成分に対して振幅を変更
                 # - 埋め込み対象の周波数ビンに指定した振幅変調を適用
-                embedded_y1spec[embedded_frequencies, :] = embed * embedded_y1spec[embedded_frequencies, :]
+                embedded_y1spec[embedded_frequencies, :] = embedding_ratio * embedded_y1spec[embedded_frequencies, :]
                 # 音質検査用の振幅変調
                 # - 埋め込み対象の配列 (y1zero) に対して振幅変調を適用
-                y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = embed * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
+                y1zero[embedded_frequencies, frame_start_index:frame_start_index+3] = embedding_ratio * y1zero[embedded_frequencies, frame_start_index:frame_start_index+3]
 
             elif emb_type == "phase_modulation":
                 # 位相変調: 選択された周波数成分の位相を調整
-                phase_shift = embed / 180 * np.pi       # 度単位の位相シフトをラジアンに変換
+                phase_shift = embedding_ratio / 180 * np.pi       # 度単位の位相シフトをラジアンに変換
                 embedded_y1spec[embedded_frequencies, :] = embedded_y1spec[embedded_frequencies, :] * np.exp(1j * phase_shift)
                 # 音質検査用の振幅変調
                 # - 埋め込み対象の配列 (y1zero) に対して位相変調を適用
@@ -668,10 +713,10 @@ def gcc_phat(music_type, emb_type):
 
         # 生成された音源の保存
         # - 埋め込み強度を含むファイル名で波形を保存
-        sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/{emb_type}/embedded_music{music_type}_gain{embed:.2f}.wav', embedded_waveform, sampling_rate)
+        sf.write(f'./../../sound/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}/embedded_music{music_type}_gain{embedding_ratio:.2f}.wav', embedded_waveform, sampling_rate)
 
         # 確認用の進捗表示
-        print(f'{(int(num+1) / loop_times)*100:3.0f}% Completed')
+        print(f'{(int(num) / loop_times)*100:3.0f}% Completed')
 
     # numpy配列に変換
     # - 遅延推定誤差と音質スコアを配列形式で保存
@@ -685,10 +730,10 @@ def gcc_phat(music_type, emb_type):
 
     # 保存先のパスを指定
     # - ログファイル
-    logs_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/logs'
+    logs_path = f'./../../data/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}/csv_files/logs'
 
     # - 計算結果
-    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/{emb_type}/csv_files/raw_data'
+    raw_data_path = f'./../../data/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}/csv_files/raw_data'
 
     # ログファイルに書き込むデータ
     # - 1_1. 設定条件
