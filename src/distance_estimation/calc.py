@@ -77,7 +77,8 @@ def gcc_phat(music_type, emb_type):
     num_embedding_frames        = 40    # 連続して特定の振幅を埋め込むフレーム数
 
     # 埋め込みを行う周波数の範囲 (STFTフレーム内のビン数, 論文中では L と表記)
-    embedding_frequency_bins    = np.floor(frame_length*0.1).astype(int)    # フレーム長の10%を埋め込み対象にしている
+    embedding_frequency_ratio   = 0.1    # フレーム長の10%を埋め込み対象にしている
+    embedding_frequency_bins    = np.floor(frame_length*embedding_frequency_ratio).astype(int)
 
     # 各試行におけるフレーム開始位置
     # フレーム開始位置のシフトリストを作成
@@ -104,9 +105,9 @@ def gcc_phat(music_type, emb_type):
 
     # 埋め込み方法に応じた処理
     if emb_type == "amplitude_modulation":
-        embedding_operator = np.linspace(0, 1, loop_times)  # 振幅変調 (論文中のNを0から1に変化させている)
+        embedding_ratio = np.linspace(0, 1, loop_times)  # 振幅変調 (論文中のNを0から1に変化させている)
     elif emb_type == "phase_modulation":
-        embedding_operator = np.linspace(0, 180, 25)        # 位相変調 (0° ~ 180°)
+        embedding_ratio = np.linspace(0, 180, loop_times)        # 位相変調 (0° ~ 180°)
     else:
         raise ValueError(f"Unknown embedding type: {emb_type}")
 
@@ -121,7 +122,7 @@ def gcc_phat(music_type, emb_type):
     pesq_scores = []        # 埋め込み処理後の音声品質の知覚評価
     snr_scores  = []        # 埋め込み処理後の信号対雑音比
 
-    for num, embed in enumerate(embedding_operator):    # 埋め込む種類に応じた処理が行われる
+    for num, embed in enumerate(embedding_ratio):    # 埋め込む種類に応じた処理が行われる
 
         # ------------------------------
         # 5. オーディオファイルの読み込み
