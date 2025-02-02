@@ -8,6 +8,7 @@ Created by FreReRiku on 2025/01/17
 """
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 import pyroomacoustics as pra
 import soundfile as sf
 from scipy.io import wavfile
@@ -96,8 +97,20 @@ def room(music_type):
     ax.set_ylim([0, 3.6])
     ax.set_zlim([0, 2.5])
 
+    # マイクとスピーカーを示す凡例用のハンドルを作成
+    mic_handle = mlines.Line2D([], [], color='gray', marker='x', linestyle='None', markersize=5, label='Microphone')
+    speaker1_handle = mlines.Line2D([], [], color='gray', marker='s', linestyle='None', markersize=5, label='Speaker1')
+    speaker2_handle = mlines.Line2D([], [], color='gray', marker='o', linestyle='None', markersize=5, label='Speaker2')
+
+    # axに凡例を追加
+    ax.legend(handles=[mic_handle, speaker1_handle, speaker2_handle])
+
     # 画像の保存
     plt.savefig('./../../figure/room_simulation/room.png')
+    plt.show()
+
+    # 2D版の画像の保存
+    # make_fig_2d(music_type)
 
     # ------------------------------
     # インパルス応答のシミュレーション
@@ -141,5 +154,61 @@ def room(music_type):
     # サンプリングレートの変更
     # for sound_file in sound_files:
     #     convert.sampling_rate(input_file=sound_file, orig_sr=fs, target_sr=target_sr)
+
+    return
+
+def make_fig_2d(music_type):
+
+    # ------------------------------
+    # 音源・スピーカーの設定
+    # ------------------------------
+    # 使用する音源の選択
+    music_type = music_type
+    # スピーカーの数
+    num_spk = 2
+    # 各スピーカーに音源を割り当てる
+    channels = []
+    for spk in range(num_spk):
+        fs, channel = wavfile.read(f'./../../sound/original/music{music_type}_mono.wav')
+        channels.append(channel)
+
+    # ------------------------------
+    # 部屋の設定
+    # ------------------------------
+    # 残響時間[s]
+    rt60 = 0.3
+    # 部屋の寸法[m]
+    room_dimensions = [3.52, 3.52]
+    # Sabineの残響式から壁面の平均吸音率と鏡像法での反射回数の上限を求める (e_absorption, max_order)
+    e_absorption, max_order = pra.inverse_sabine(rt60, room_dimensions)
+
+    # テスト用: max_orderを強制的に5に設定
+    max_order = 5
+
+    # 設定をroomに反映
+    room = pra.ShoeBox(
+        p           = room_dimensions,
+        t0          = 0.0,
+        fs          = fs,
+        materials   = pra.Material(e_absorption),
+        max_order   = max_order
+    )
+
+    # マイク設置 [m]
+    mic_loc = [1.75, 1.75]
+    room.add_microphone(mic_loc)
+
+    # スピーカーの座標情報
+    room.add_source([3.4, 0.5], signal=channels[0])
+    room.add_source([3.4, 2.3], signal=channels[1])
+
+    # 部屋表示
+    fig, ax = room.plot()
+    ax.set_xlim([0, 3.6])
+    ax.set_ylim([0, 3.6])
+
+    # 画像の保存
+    plt.savefig('./../../figure/room_simulation/room_2d.png')
+
 
     return
