@@ -8,6 +8,7 @@ Created by FreReRiku on 2025/01/17
 """
 
 from pathlib import Path
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -593,4 +594,102 @@ def plot_mean_csp_ws(music_type, emb_type, variable):
     print(f"画像が保存されました: {filename}")
     plt.close()
     
+    return
+
+def AM_vs_PM(music_type, emb_type, variable):
+    """
+    Returns
+    -------
+    None
+    """
+    
+    # 出力パスの設定, (該当ディレクトリがなければ自動で作成)
+    output_path = f'../../figure/distance_estimation/music{music_type}_mono/var_{variable}/{emb_type}/'
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
+    # 日本語対応フォントの設定（システムに合わせて適宜変更してください）
+    matplotlib.rcParams['font.family'] = 'sans-serif'
+    matplotlib.rcParams['font.sans-serif'] = ['IPAexGothic', 'Yu Gothic', 'TakaoPGothic', 'Meirio', 'MS Gothic']
+
+    # 基本パラメータの設定
+    n_fft = 2048
+    fs = 44100
+    time_axis = np.arange(n_fft) / fs  # 今回は使用しないが保持
+    embedding_amplitudes = np.linspace(0, 1, 25)  # 元の埋込パラメータ t
+    amplitude_gain = 1 - embedding_amplitudes       # 下部x軸は1から0へ表示
+    speed_of_sound = 340.29
+    
+    # CSVファイルのパス設定
+    am_delay_path = f'../../data/distance_estimation/music{music_type}_mono/var_{variable}/amplitude_modulation/csv_files/raw_data/delay_time_errors.csv'
+    pm_delay_path = f'../../data/distance_estimation/music{music_type}_mono/var_{variable}/phase_modulation/csv_files/raw_data/delay_time_errors.csv'
+    am_pesq_path = f'../../data/distance_estimation/music{music_type}_mono/var_{variable}/amplitude_modulation/csv_files/raw_data/pesq_scores.csv'
+    pm_pesq_path = f'../../data/distance_estimation/music{music_type}_mono/var_{variable}/phase_modulation/csv_files/raw_data/pesq_scores.csv'
+    
+    # CSVファイルの読み込み
+    try:
+        # AM_delay_time_errors の値の順序を逆転
+        am_delay = pd.read_csv(am_delay_path, header=None).squeeze("columns")
+        am_delay = pd.to_numeric(am_delay, errors='coerce').dropna().to_numpy()
+        am_delay = am_delay[::-1]
+        
+        pm_delay = pd.read_csv(pm_delay_path, header=None).squeeze("columns")
+        pm_delay = pd.to_numeric(pm_delay, errors='coerce').dropna().to_numpy()
+        
+        # AM_pesq_scores の値の順序を逆転
+        am_pesq = pd.read_csv(am_pesq_path, header=None).squeeze("columns")
+        am_pesq = pd.to_numeric(am_pesq, errors='coerce').dropna().to_numpy()
+        am_pesq = am_pesq[::-1]
+        
+        pm_pesq = pd.read_csv(pm_pesq_path, header=None).squeeze("columns")
+        pm_pesq = pd.to_numeric(pm_pesq, errors='coerce').dropna().to_numpy()
+        
+    except Exception as e:
+        print(f"Error loading CSV files: {e}")
+        return
+    
+    # 図の作成 (figsize を大きめに設定)
+    fig, ax1 = plt.subplots(figsize=(12, 8))
+    plt.subplots_adjust(bottom=0.35)
+    
+    # 推定誤差の計算 (距離[m]に変換)
+    am_distance_error = am_delay * speed_of_sound / 1000
+    pm_distance_error = pm_delay * speed_of_sound / 1000
+    
+    # プロット（Lineオブジェクトを変数に格納）
+    # ax1：推定誤差（実線）
+    line_am_error, = ax1.plot(amplitude_gain, am_distance_error, color='blue', linestyle='-', 
+                              label='AM推定誤差: 青実線')
+    line_pm_error, = ax1.plot(amplitude_gain, pm_distance_error, color='red', linestyle='-', 
+                              label='PM推定誤差: 赤実線')
+    ax1.set_xlim(1.0, 0.0)
+    ax1.set_xlabel("Embedding Amplitude Gain", fontsize=20)
+    ax1.set_ylabel("Estimation Distance Error [m]", fontsize=20)
+    
+    # ax2：PESQスコア（破線）
+    ax2 = ax1.twinx()
+    line_am_pesq, = ax2.plot(amplitude_gain, am_pesq, color='blue', linestyle='--', 
+                             label='AM音質: 青破線')
+    line_pm_pesq, = ax2.plot(amplitude_gain, pm_pesq, color='red', linestyle='--', 
+                             label='PM: 赤破線')
+    ax2.set_ylim(-0.05, 5.5)
+    ax2.set_ylabel("PESQ", fontsize=20)
+    
+    # 副x軸の追加: (1 - A)*180 で「Embedding Phase [degree]」を表示
+    secax = ax1.secondary_xaxis('top',
+                                functions=(lambda A: (1 - A) * 180,
+                                           lambda P: 1 - P / 180))
+    secax.set_xlabel("Embedding Phase [degree]", fontsize=20)
+    
+    # 凡例を手動で順序通りに設定:
+    custom_handles = [line_am_error, line_am_pesq, line_pm_error, line_pm_pesq]
+    custom_labels  = ["AM推定誤差: 青実線", "AM音質: 青破線", "PM推定誤差: 赤実線", "PM: 赤破線"]
+    fig.legend(custom_handles, custom_labels, loc='upper center',
+               bbox_to_anchor=(0.5, 0.2), ncol=4, fontsize=16)
+    
+    # 画像の保存 (bbox_inches='tight' を指定して余白も含める)
+    filename = f'{output_path}/combined_vs_PESQ.svg'
+    plt.savefig(filename, bbox_inches='tight')
+    print(f"画像が保存されました: {filename}")
+    
+    plt.close()
     return
