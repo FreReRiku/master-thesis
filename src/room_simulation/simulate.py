@@ -106,7 +106,7 @@ def room(music_type):
     ax.legend(handles=[mic_handle, speaker1_handle, speaker2_handle])
 
     # 画像の保存
-    plt.savefig('./../../figure/room_simulation/room.png')
+    plt.savefig('./../../figure/room_simulation/room2.png')
     plt.show()
 
     # 2D版の画像の保存
