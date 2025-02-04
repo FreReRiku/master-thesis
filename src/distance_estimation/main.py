@@ -24,7 +24,6 @@ for music in music_type:
             calc.gcc_phat(music, emb, variable)
 
             # 可視化処理
-            visualize.AM_vs_PM(music, emb, variable)
             visualize.plot_embedding_error(music, emb, variable)
             visualize.plot_impulse(music, emb, variable)
             visualize.plot_mean_embedded_csp(music, emb, variable)
@@ -33,5 +32,6 @@ for music in music_type:
             visualize.plot_mean_csp_ws(music, emb, variable)
             visualize.plot_embedded_frequencies(music, emb, variable)
             visualize.plot_audio_waveform(music, emb, variable)
+            visualize.plot_AM_vs_PM(music, emb, variable)
 
 print("Completed!!!")
