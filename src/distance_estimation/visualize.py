@@ -596,7 +596,7 @@ def plot_mean_csp_ws(music_type, emb_type, variable):
     
     return
 
-def AM_vs_PM(music_type, emb_type, variable):
+def plot_AM_vs_PM(music_type, emb_type, variable):
     """
     Returns
     -------
