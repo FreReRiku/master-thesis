@@ -21,16 +21,17 @@ for music in music_type:
             # 遅延推定の計算
             print(f'music_type{music}の{emb}処理を行います.')
             print(f'{variable}をループさせて計算を行います.')
-            calc.gcc_phat(music, emb, variable)
+            # calc.gcc_phat(music, emb, variable)
 
             # 可視化処理
-            visualize.plot_embedding_error(music, emb, variable)
-            visualize.plot_impulse(music, emb, variable)
-            visualize.plot_mean_embedded_csp(music, emb, variable)
-            visualize.plot_mean_csp1(music, emb, variable)
-            visualize.plot_mean_csp2(music, emb, variable)
-            visualize.plot_mean_csp_ws(music, emb, variable)
-            visualize.plot_embedded_frequencies(music, emb, variable)
-            visualize.plot_audio_waveform(music, emb, variable)
+            visualize.AM_vs_PM(music, emb, variable)
+            # visualize.plot_embedding_error(music, emb, variable)
+            # visualize.plot_impulse(music, emb, variable)
+            # visualize.plot_mean_embedded_csp(music, emb, variable)
+            # visualize.plot_mean_csp1(music, emb, variable)
+            # visualize.plot_mean_csp2(music, emb, variable)
+            # visualize.plot_mean_csp_ws(music, emb, variable)
+            # visualize.plot_embedded_frequencies(music, emb, variable)
+            # visualize.plot_audio_waveform(music, emb, variable)
 
 print("Completed!!!")
